@@ -24,8 +24,8 @@ class Runner:
         self.params = params
         self.dataset = dataset
 
-    def train_model(self, trial=None):
-        trainer = Trainer(gpus=1, max_epochs=500)
+    def train_model(self, max_epochs=500, trial=None):
+        trainer = Trainer(gpus=1, max_epochs=max_epochs)
         hparams = HParams(self.params, trial)
         lightning_module = ItchDetector(self.model(hparams), hparams, self.dataset, trial)
         self.tune_lr(trainer, lightning_module)

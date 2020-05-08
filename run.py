@@ -5,9 +5,9 @@ import torch
 logging.getLogger().setLevel(logging.DEBUG)  # Log all info
 
 dlc = mn.DLCProject(config_path='/home/pl/sauhaarda/peptide_logic_refactored/dlc/'
-                                'mouse_behavior_id-sauhaarda-2020-01-24/config.yaml')
+                                'mouse_behavior_id-sauhaarda-2020-01-24/config.yaml', pcutoff=0.25)
 labeled_videos = mn.json_to_videos('/home/pl/Data/mWT SR 017 (PL 100960 DRC IV)_renamed/', 'benv2.json',
-                                   mult=30 / 29.981110061670094)
+                                   mult=30 / 29.884408054387492)
 
 # Infer trajectories
 dlc.infer_trajectories(labeled_videos)
@@ -52,12 +52,22 @@ class MouseModel(torch.nn.Module):
 torch.manual_seed(1)  # consistent behavior w/ random seed
 dataset = mn.DLCDataset(labeled_videos, df_map)
 runner = mn.Runner(MouseModel, hparams, dataset)
-model, auc = runner.train_model()
+model, auc = runner.train_model(max_epochs=500)
+print(auc)
 
 # runner.hyperparemeter_optimization(timeout=600, n_trials=None)
+
+# Run visualization
 model.eval()
 model.cpu()
-print(model(dataset[0][0]).detach())
+model_out = model(dataset[0][0]).detach()  # get model output
+dlc.create_labeled_videos(labeled_videos)  # create labeled video if it doesn't exist
 
-dlc.create_labeled_videos(labeled_videos)
-mn.VisualDebugger(div=30 / 29.981110061670094)
+# print(f"{model_out[0].max()} {model_out[0].min()}")
+#
+import pickle
+pickle.dump((dataset[0][1], model_out), open('temp.pkl', 'wb'))
+#
+for video, y, y_hat in zip(labeled_videos, dataset[0][1], model_out):
+    mn.VisualDebugger(video, y, y_hat, div=30 / 29.884408054387492)
+    break  # only visualize first video for now

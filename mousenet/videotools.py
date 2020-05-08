@@ -80,11 +80,11 @@ def json_to_videos(video_folder, json_path, mult):
     for video in video_list:
         for behavior in human_label[video.get_name()].keys():
             labels = human_label[video.get_name()][behavior]
-            frames = list(range(int(labels['Label Start'] * mult), int(labels['Label End'] * mult)))
+            frames = list(range(round(labels['Label Start'] * mult), round(labels['Label End'] * mult)))
             ground_truth = torch.FloatTensor([util.in_range(labels['event_ranges'], frame, mult) for frame in frames])
             ground_truth_path = video.path.split('.mp4')[0] + f'{behavior}.lbl'
             torch.save(ground_truth, ground_truth_path)
             video.set_ground_truth(ground_truth_path, behavior)
-            video.start, video.end = int(labels['Label Start'] * mult), int(labels['Label End'] * mult)
+            video.start, video.end = round(labels['Label Start'] * mult), round(labels['Label End'] * mult)
 
     return video_list

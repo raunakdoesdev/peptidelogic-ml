@@ -17,7 +17,7 @@ with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
 
 class DLCProject:
     def __init__(self, config_path=None, proj_name=None, labeler_name=None, videos=None, bodyparts=None, proj_dir='.',
-                 numframespervid=20, pcutoff=0.9, cfg_update={}):
+                 numframespervid=20, pcutoff=0.25, cfg_update={}):
         if config_path is not None:
             self.config_path = os.path.abspath(config_path)
         elif proj_name is not None and labeler_name is not None and videos is not None and bodyparts is not None:
@@ -149,7 +149,7 @@ class DLCProject:
                     pool.close()
                     pool.join()
 
-    def create_labeled_videos(self, videos, num_procs=None, infer=True):
+    def create_labeled_videos(self, videos, force=False):
         todo_video_paths = []
 
         with util.DisableLogger():
@@ -157,9 +157,10 @@ class DLCProject:
                 scorer = self.get_scorer_name()
 
         for video in videos:
-            labeled_video_path = f"{video.path.split('.mp4')[0]}{scorer}filtered_labeled.mp4"
+            labeled_video_path = f"{video.path.split('.mp4')[0]}{scorer}_labeled.mp4"
             video.labeled_video_path = labeled_video_path
-            if not os.path.exists(labeled_video_path):
+            if (not os.path.exists(labeled_video_path)) or force:
+                os.system(f'rm "{labeled_video_path}"')
                 todo_video_paths.append(video.path)
             else:
                 logging.warning(
@@ -167,13 +168,12 @@ class DLCProject:
 
         if len(todo_video_paths) > 0:
             with util.DisableLogger():
-                with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
-                    num_procs = mp.cpu_count()
-                    pool = mp.Pool(num_procs)
-                    chunked_video_paths = np.array_split(todo_video_paths, num_procs)
+                num_procs = mp.cpu_count()
+                pool = mp.Pool(num_procs)
+                chunked_video_paths = np.array_split(todo_video_paths, num_procs)
 
-                    for proc in range(num_procs):
-                        pool.apply_async(deeplabcut.create_labeled_video, (self.config_path, chunked_video_paths[proc]))
+                for proc in range(num_procs):
+                    pool.apply_async(deeplabcut.create_labeled_video, (self.config_path, chunked_video_paths[proc]))
 
-                    pool.close()
-                    pool.join()
+                pool.close()
+                pool.join()
