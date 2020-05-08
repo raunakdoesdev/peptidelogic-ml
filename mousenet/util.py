@@ -3,8 +3,9 @@ import logging
 import torch
 
 
-def in_range(event_ranges, frame_num):
-    return any([int(range_min) <= int(frame_num) < int(range_max) for range_min, range_max in event_ranges])
+def in_range(event_ranges, frame_num, mult=1):
+    return any(
+        [int(range_min * mult) <= int(frame_num) < int(range_max * mult) for range_min, range_max in event_ranges])
 
 
 class DisableLogger():

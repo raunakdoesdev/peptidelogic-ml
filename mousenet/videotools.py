@@ -21,6 +21,7 @@ class LabeledVideo(Video):
         super().__init__(path)
         self.ground_truth = {}
         self.df_path = None
+        self.labeled_video_path = None
         self.start = None
         self.end = None
 
@@ -54,7 +55,7 @@ def folder_to_videos(video_folder, skip_words=('filtered_labeled',), paths=False
     return video_paths if paths else [Video(video_path) for video_path in video_paths]
 
 
-def json_to_videos(video_folder, json_path):
+def json_to_videos(video_folder, json_path, mult):
     """
     Creates video object with ground_truth for all annotated videos in the provided JSON file.
     :param video_folder:
@@ -79,11 +80,11 @@ def json_to_videos(video_folder, json_path):
     for video in video_list:
         for behavior in human_label[video.get_name()].keys():
             labels = human_label[video.get_name()][behavior]
-            frames = list(range(int(labels['Label Start']), int(labels['Label End'])))
-            ground_truth = torch.FloatTensor([util.in_range(labels['event_ranges'], frame) for frame in frames])
+            frames = list(range(int(labels['Label Start'] * mult), int(labels['Label End'] * mult)))
+            ground_truth = torch.FloatTensor([util.in_range(labels['event_ranges'], frame, mult) for frame in frames])
             ground_truth_path = video.path.split('.mp4')[0] + f'{behavior}.lbl'
             torch.save(ground_truth, ground_truth_path)
             video.set_ground_truth(ground_truth_path, behavior)
-            video.start, video.end = int(labels['Label Start']), int(labels['Label End'])
+            video.start, video.end = int(labels['Label Start'] * mult), int(labels['Label End'] * mult)
 
     return video_list

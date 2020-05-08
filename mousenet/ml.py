@@ -1,88 +1,116 @@
-from torch.utils.data import Dataset, DataLoader
-import torch
-import pandas as pd
-from mousenet import util
-import logging
+import copy
+
+import numpy as np
+import optuna
 import pytorch_lightning as pl
-from torch.nn import functional as F
+import torch
+import torch.nn.functional as F
+from pytorch_lightning import Trainer
 
 
-class DLCDataset(Dataset):
-    # noinspection PyArgumentList
-    def __init__(self, videos, input_map, behavior='Writhe', multiplier=1.0):
-        if behavior is not None:
-            self.x = []
-            self.y = []
+class HParams:
+    def __init__(self, parameters, trial=None):
+        for key, value in parameters.items():
+            if type(value) is tuple:
+                value = value[0] if trial is None else trial.suggest_int(key, *value[1])
+            setattr(self, key, value)
 
-            for video in videos:
-                ground_truth = torch.load(video.ground_truth[behavior])
-                df = pd.read_hdf(video.df_path)
+        self.learning_rate = 0.01
 
-                df = df[df.columns.get_level_values(0).unique()[0]]
-                df = df.iloc[int(video.start * multiplier): int(video.end * multiplier)]
-                self.x.append(torch.cat([torch.FloatTensor(flag.to_numpy()).unsqueeze(0) for flag in input_map(df)]))
-                self.y.append(ground_truth)
 
-            # add a segment of zeros between elements
-            self.x = util.intersperse(self.x, torch.zeros([self.x[0].shape[0], 100]))
-            self.y = util.intersperse(self.y, torch.zeros([100]))
+class Runner:
+    def __init__(self, model, params, dataset):
+        self.model = model
+        self.params = params
+        self.dataset = dataset
 
-            # concatenate across videos
-            self.x = torch.cat(self.x, dim=1)
-            self.y = torch.cat(self.y)
+    def train_model(self, trial=None):
+        trainer = Trainer(gpus=1, max_epochs=500)
+        hparams = HParams(self.params, trial)
+        lightning_module = ItchDetector(self.model(hparams), hparams, self.dataset, trial)
+        self.tune_lr(trainer, lightning_module)
+        trainer.fit(lightning_module)
+        return lightning_module, lightning_module.max_auc
 
-            logging.debug(f'Input shape is {self.x.shape}')
-            logging.debug(f'output shape is {self.y.shape}')
+    def objective(self, trial):
+        return self.train_model(trial)[1]
 
-    def __len__(self):
-        return 1
+    def hyperparemeter_optimization(self, n_trials=1000, timeout=600):
+        pruner = optuna.pruners.SuccessiveHalvingPruner()
+        study = optuna.create_study(direction="maximize", pruner=pruner)
+        study.optimize(self.objective, n_trials=n_trials, timeout=timeout)
+        print("Number of finished trials: {}".format(len(study.trials)))
+        print("Best trial:")
+        trial = study.best_trial
+        print("  Value: {}".format(trial.value))
+        print("  Params: ")
+        for key, value in trial.params.items():
+            print("    {}: {}".format(key, value))
 
-    def __getitem__(self, idx):
-        return self.x, self.y
-
-    # noinspection PyTypeChecker
-    def split_dataset(self, train_val_split):
-        size1 = round(train_val_split * self.y.shape[0])
-
-        d1 = DLCDataset(None, None, behavior=None)
-        d2 = DLCDataset(None, None, behavior=None)
-        d1.x, d2.x = self.x[:, :size1], self.x[:, size1:]
-        d1.y, d2.y = self.y[:size1], self.y[size1:]
-        return d1, d2
+    def tune_lr(self, trainer, lightning_module):
+        lr_finder = trainer.lr_find(lightning_module)
+        new_lr = lr_finder.suggestion()
+        lightning_module.hparams.learning_rate = new_lr
 
 
 class ItchDetector(pl.LightningModule):
-    def __init__(self, dataset, loss_func=F.binary_cross_entropy, train_val_split=0.7):
+    def __init__(self, model, hparams, dataset, trial=None):
         super().__init__()
-        self.loss_func = loss_func
-        self.train_set, self.val_set = dataset.split_dataset(train_val_split)
-
-        num_filters = 4
-        filter_width = 1
-        in_channels = dataset[0][0].shape[0]
-        self.model = torch.nn.Conv1d(in_channels, num_filters, kernel_size=2 * filter_width + 1,
-                            padding=filter_width)
+        self.train_set, self.val_set = dataset.split_dataset(hparams.train_val_split)
+        self.hparams = hparams
+        self.max_auc = None
+        self.model = model
+        self.trial = trial
 
     def forward(self, x):
-        x = self.model(x)
-        x = x.max(dim=1)
-        return F.sigmoid(x)
+        return self.model(x)
 
     def training_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
-        return {'loss': self.loss_func(y_hat, y)}
+        weight = self.hparams.weight * (y == 1) + (y == 0).float()
+        return {'loss': F.binary_cross_entropy(y_hat, y, weight=weight)}
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
-        return {'loss': self.loss_func(y_hat, y)}
+        weight = (self.hparams.weight * (y == 1) + (y == 0)).float()
+
+        tpr = [0]
+        fpr = [0]
+        epsilon = 0.1
+        thresh = 1
+        auc = 0
+        while thresh >= 0:
+            pred_y = y_hat >= thresh
+            tpr.append(float(torch.sum((y == pred_y) * (y == 1))) / float(torch.sum(y)))
+            fpr.append(float(torch.sum((y != pred_y) * (y == 0))) / float(torch.sum(y == 0)))
+            auc += (fpr[-1] - fpr[-2]) * (tpr[-2] + tpr[-1]) / 2
+            thresh -= epsilon
+        return {'loss': F.binary_cross_entropy(y_hat, y, weight=weight),
+                'auc': auc}
 
     def train_dataloader(self):
-        return DataLoader(self.train_set, batch_size=1)
+        return self.train_set
 
     def val_dataloader(self):
-        return DataLoader(self.val_set, batch_size=1)
+        return self.val_set
+
+    def validation_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
+        avg_auc = np.mean([x['auc'] for x in outputs])
+        log = {'val_loss': avg_loss, 'val_auc': avg_auc}
+        log['log'] = copy.deepcopy(log)
+
+        if self.max_auc is None or self.max_auc < avg_auc:
+            self.max_auc = avg_auc
+
+        if self.trial is not None:
+            self.trial.report(avg_auc, step=self.current_epoch)
+            if self.trial.should_prune():
+                message = "Trial was pruned at epoch {}.".format(self.current_epoch)
+                raise optuna.exceptions.TrialPruned(message)
+        return log
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=0.02)
+        return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
