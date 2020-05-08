@@ -1,2 +1,5 @@
 .idea
 *.pyc
+*.json
+*.pkl
+_*.py
