@@ -25,15 +25,20 @@ class Runner:
         self.dataset = dataset
 
     def train_model(self, max_epochs=500, trial=None):
-        trainer = Trainer(gpus=1, max_epochs=max_epochs)
+        import os
+        if os.name == 'nt':
+            trainer = Trainer(max_epochs=max_epochs)
+        else:
+            trainer = Trainer(gpus=1, max_epochs=max_epochs)
         hparams = HParams(self.params, trial)
         lightning_module = ItchDetector(self.model(hparams), hparams, self.dataset, trial)
         self.tune_lr(trainer, lightning_module)
         trainer.fit(lightning_module)
+        lightning_module.model.load_state_dict(lightning_module.best_state_dic)  # grab best model
         return lightning_module, lightning_module.max_auc
 
     def objective(self, trial):
-        return self.train_model(trial)[1]
+        return self.train_model(trial=trial)[1]
 
     def hyperparemeter_optimization(self, n_trials=1000, timeout=600):
         pruner = optuna.pruners.SuccessiveHalvingPruner()
@@ -59,6 +64,8 @@ class ItchDetector(pl.LightningModule):
         self.train_set, self.val_set = dataset.split_dataset(hparams.train_val_split)
         self.hparams = hparams
         self.max_auc = None
+        self.cur_auc = None
+        self.best_state_dic = None
         self.model = model
         self.trial = trial
 
@@ -104,6 +111,9 @@ class ItchDetector(pl.LightningModule):
 
         if self.max_auc is None or self.max_auc < avg_auc:
             self.max_auc = avg_auc
+            self.best_state_dic = self.model.state_dict()
+
+        self.cur_auc = avg_auc
 
         if self.trial is not None:
             self.trial.report(avg_auc, step=self.current_epoch)

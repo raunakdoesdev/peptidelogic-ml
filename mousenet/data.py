@@ -25,9 +25,10 @@ class DLCDataset(Dataset):
             for video in videos:
                 ground_truth = torch.load(video.ground_truth[behavior])
                 df = pd.read_hdf(video.df_path)
+                multiplier = video.get_num_frames() / df.shape[0]
 
                 df = df[df.columns.get_level_values(0).unique()[0]]
-                df = df.iloc[round(video.start * multiplier): round(video.end * multiplier)]
+                df = df.iloc[int(video.start * multiplier): int(video.end * multiplier)]
                 self.x.append(torch.cat(
                     [F.normalize(torch.FloatTensor(flag.to_numpy()), dim=0).unsqueeze(0) for flag in input_map(df)]))
                 self.y.append(ground_truth)

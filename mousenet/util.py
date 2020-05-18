@@ -3,9 +3,11 @@ import logging
 import torch
 
 
-def in_range(event_ranges, frame_num, mult=1):
-    return any(
-        [int(range_min * mult) <= int(frame_num) < int(range_max * mult) for range_min, range_max in event_ranges])
+def in_range(event_ranges, frame_num, map=None):
+    if map is None:
+        return any([int(min) <= int(frame_num) < int(max) for min, max in event_ranges])
+    if map is not None:
+        return any([int(map(min)) <= int(frame_num) < int(map(max)) for min, max in event_ranges])
 
 
 class DisableLogger():
@@ -48,3 +50,15 @@ class Max(torch.nn.Module):
 
     def forward(self, x):
         return torch.max(x, dim=self.dim)[0]
+
+
+def translate(value, leftMin, leftMax, rightMin, rightMax):
+    # Figure out how 'wide' each range is
+    leftSpan = leftMax - leftMin
+    rightSpan = rightMax - rightMin
+
+    # Convert the left range into a 0-1 range (float)
+    valueScaled = float(value - leftMin) / float(leftSpan)
+
+    # Convert the 0-1 range into a value in the right range.
+    return rightMin + (valueScaled * rightSpan)

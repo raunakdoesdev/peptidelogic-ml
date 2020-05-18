@@ -119,12 +119,16 @@ class DLCProject:
         return deeplabcut.auxiliaryfunctions.GetScorerName(cfg, shuffle, train_fraction,
                                                            trainingsiterations=trainingsiterations)
 
-    def infer_trajectories(self, videos, num_procs=None, infer=True):
+    def infer_trajectories(self, videos, num_procs=None, infer=True,
+                           scorer_name='DeepCut_resnet50_mouse_behavior_idJan24shuffle1_200000'):
         uninferred_video_paths = []
 
         with util.DisableLogger():
             with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
-                scorer = self.get_scorer_name()
+                try:
+                    scorer = self.get_scorer_name()
+                except Exception:
+                    scorer = scorer_name
 
         for video in videos:
             label_path = f"{video.path.split('.mp4')[0]}{scorer}.h5"
@@ -173,7 +177,7 @@ class DLCProject:
                 chunked_video_paths = np.array_split(todo_video_paths, num_procs)
 
                 for proc in range(num_procs):
-                    pool.apply_async(deeplabcut.create_labeled_video, (self.config_path, chunked_video_paths[proc]))
+                    pool.apply_async(deeplabcut.create_labeled_video, (self.config_path, chunked_video_paths[proc]), )
 
                 pool.close()
                 pool.join()
