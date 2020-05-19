@@ -10,6 +10,7 @@ def in_range(event_ranges, frame_num, map=None):
         return any([int(map(min)) <= int(frame_num) < int(map(max)) for min, max in event_ranges])
 
 
+
 class DisableLogger():
     def __enter__(self):
         logging.disable(logging.CRITICAL)

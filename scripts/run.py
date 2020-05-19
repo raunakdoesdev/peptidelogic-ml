@@ -4,23 +4,31 @@ import torch
 
 logging.getLogger().setLevel(logging.DEBUG)  # Log all info
 
-dlc = mn.DLCProject(config_path='/home/pl/sauhaarda/peptide_logic_refactored/dlc/'
-                                'mouse_behavior_id-sauhaarda-2020-01-24/config.yaml', pcutoff=0.25)
-labeled_videos = mn.json_to_videos('/home/pl/Data/mWT SR 017 (PL 100960 DRC IV)_renamed/', 'benv2.json',
-                                   mult=30 / 29.884408054387492)
+
+
+import os
+if os.name == 'nt':
+    dlc = mn.DLCProject(config_path='D:\Peptide Logic\Writhing\config.yaml', pcutoff=0.25)
+
+    labeled_videos = mn.json_to_videos(r'D:\Peptide Logic\Writhing', 'timelabels.json', mult=1)
+
+else:
+    dlc = mn.DLCProject(config_path='/home/pl/sauhaarda/peptide_logic_refactored/dlc/'
+                                    'mouse_behavior_id-sauhaarda-2020-01-24/config.yaml', pcutoff=0.25)
+    labeled_videos = mn.json_to_videos('/home/pl/Data/mWT SR 017 (PL 100960 DRC IV)_renamed/', 'timelabels.json', mult=1)
 
 # Infer trajectories
 dlc.infer_trajectories(labeled_videos)
 
 # Define hyperparameters
 hparams = {'num_filters': (7, (1, 20)),
-           'num_filters2': (7, (1, 20)),
-           'filter_width': (851, (601, 1001, 50)),  # must be an odd number
-           'filter_width2': (801, (201, 1001, 50)),  # must be an odd number
+           'num_filters2': (11, (1, 20)),
+           'filter_width': (71, (11, 101, 10)),  # must be an odd number
+           'filter_width2': (91, (11, 101, 10)),  # must be an odd number
            'in_channels': 6,  # number of network inputs
            'weight': 7,  # how much "emphasis" to give to positive labels
            'loss': torch.nn.functional.binary_cross_entropy,
-           'train_val_split': 0.75}
+           'train_val_split': 1}
 
 
 # Define Network Input
@@ -51,23 +59,42 @@ class MouseModel(torch.nn.Module):
 
 torch.manual_seed(1)  # consistent behavior w/ random seed
 dataset = mn.DLCDataset(labeled_videos, df_map)
-runner = mn.Runner(MouseModel, hparams, dataset)
-model, auc = runner.train_model(max_epochs=500)
-print(auc)
 
-# runner.hyperparemeter_optimization(timeout=600, n_trials=None)
+prints = []
+# runner.hyperparemeter_optimization(timeout=600)
+
+
+for data_split in [0.1, 0.3, 0.5, 0.7, 0.9, 1]:
+    hparams['train_val_split'] = data_split
+    runner = mn.Runner(MouseModel, hparams, dataset)
+    model, auc = runner.train_model(max_epochs=500)
+    prints.append(f"{data_split*0.75}\t{auc}")
+
+print('\n'.join(prints))
 
 # Run visualization
 model.eval()
 model.cpu()
 model_out = model(dataset[0][0]).detach()  # get model output
-dlc.create_labeled_videos(labeled_videos)  # create labeled video if it doesn't exist
+# dlc.create_labeled_videos(labeled_videos)  # create labeled video if it doesn't exist
+# # print(f"{model_out[0].max()} {model_out[0].min()}")
+# #
 
-# print(f"{model_out[0].max()} {model_out[0].min()}")
-#
+
+import matplotlib.pyplot as plt
+
+# vid = 0
+# mx, my = dataset[0]
+# print(my.shape)
+# plt.plot(list(range(len(my[vid]))), my[vid], color='red')
+# # plt.plot(list(range(len(my[vid]))), model_out[vid], color='blue')
+# plt.savefig('PLOT.png')
+
+
 import pickle
-pickle.dump((dataset[0][1], model_out), open('temp.pkl', 'wb'))
-#
-for video, y, y_hat in zip(labeled_videos, dataset[0][1], model_out):
-    mn.VisualDebugger(video, y, y_hat, div=30 / 29.884408054387492)
-    break  # only visualize first video for now
+# #
+pickle.dump((dataset[0][1], model_out), open('vis.pkl', 'wb'))
+# #
+# for video, y, y_hat in zip(labeled_videos, dataset[0][1], model_out):
+#     mn.VisualDebugger(video, y, y_hat)
+#     break  # only visualize first video for now

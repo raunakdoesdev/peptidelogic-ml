@@ -223,8 +223,8 @@ class VisualDebugger:
                     cv2.circle(frame, (int(x), int(y)), 3, color, 6)
             imgbytes = cv2.imencode('.png', frame)[1].tobytes()
             self.window['video'].update(data=imgbytes)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.exception(e)
 
     def _draw_figure(self, canvas):
         figure_canvas_agg = FigureCanvasTkAgg(self.fig, canvas)
