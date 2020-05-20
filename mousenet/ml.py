@@ -66,7 +66,10 @@ class ItchDetector(pl.LightningModule):
     def __init__(self, model, hparams, dataset, trial=None):
         super().__init__()
         self.train_set, self.val_set = dataset.split_dataset(0.75)
-        self.train_set, _ = self.train_set.split_dataset(1 - hparams.train_val_split)
+        self.train_set, _ = self.train_set.split_dataset(hparams.train_val_split)
+
+        print(f'Training Set Size: {self.train_set[0][0].shape}')
+        print(f'Validation Set Size: {self.val_set[0][0].shape}')
 
         self.hparams = hparams
         self.max_auc = None

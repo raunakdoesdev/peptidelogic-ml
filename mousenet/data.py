@@ -22,14 +22,17 @@ class DLCDataset(Dataset):
 
         if behavior is not None:
             self.video_splits = []
-            for video in videos:
-                ground_truth = torch.load(video.ground_truth[behavior])
-                df = pd.read_hdf(video.df_path)
-                df = df[df.columns.get_level_values(0).unique()[0]]
-                df = df.iloc[int(video.start): int(video.end)]
-                self.x.append(torch.cat(
-                    [F.normalize(torch.FloatTensor(flag.to_numpy()), dim=0).unsqueeze(0) for flag in input_map(df)]))
-                self.y.append(ground_truth)
+            for video in self.videos:
+                if behavior in video.ground_truth:
+                    ground_truth = torch.load(video.ground_truth[behavior])
+                    df = pd.read_hdf(video.df_path)
+                    df = df[df.columns.get_level_values(0).unique()[0]]
+                    df = df.iloc[int(video.start): int(video.end)]
+                    self.x.append(torch.cat(
+                        [F.normalize(torch.FloatTensor(flag.to_numpy()), dim=0).unsqueeze(0) for flag in input_map(df)]))
+                    self.y.append(ground_truth)
+                else:
+                    self.videos.remove(video)
 
     def __len__(self):
         return 1

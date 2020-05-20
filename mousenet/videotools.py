@@ -126,18 +126,14 @@ def json_to_videos(video_folder, json_path, mult=1):
             logging.warning(f'{key} not found in {video_folder} Skipping this file.')
 
     for video in video_list:
-        video.calculate_mappings()  # get mappings for each video
         for behavior in human_label[video.get_name()].keys():
             labels = human_label[video.get_name()][behavior]
-            frames = list(range(video.frame_to_read(labels['Label Start']), video.frame_to_read(labels['Label End'])))
-            ground_truth = torch.FloatTensor([util.in_range(labels['event_ranges'],
-                                                            frame, map=video.frame_to_read) for frame in frames])
+            frames = list(range(int(labels['Label Start']), int(labels['Label End'])))
+            ground_truth = torch.FloatTensor([util.in_range(labels['event_ranges'], frame) for frame in frames])
 
             ground_truth_path = video.path.split('.mp4')[0] + f'{behavior}.lbl'
             torch.save(ground_truth, ground_truth_path)
             video.set_ground_truth(ground_truth_path, behavior)
-            video.start, video.end = round(video.frame_to_read(labels['Label Start'])), \
-                                     round(video.frame_to_read(labels['Label End']))
+            video.start, video.end = round(labels['Label Start']), round(labels['Label End'])
 
-            video.orig_start, video.orig_end = round(labels['Label Start']), round(labels['Label End'])
     return video_list
