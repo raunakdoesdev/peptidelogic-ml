@@ -14,19 +14,20 @@ if os.name == 'nt':
     labeled_videos = mn.json_to_videos(r'D:\Peptide Logic\Writhing', '../benv2-synced.json', mult=1)
 
 else:
-    dlc = mn.DLCProject(config_path='/home/pl/sauhaarda/peptide_logic_refactored/dlc/'
-                                    'mouse_behavior_id-sauhaarda-2020-01-24/config.yaml', pcutoff=0.25)
+    dlc = mn.DLCProject(config_path='/home/pl/pl-ml/Retraining-BenR-2020-05-25/config.yaml')
+    # dlc = mn.DLCProject(config_path='/home/pl/sauhaarda/peptide_logic_refactored/dlc/'
+    #                                 'mouse_behavior_id-sauhaarda-2020-01-24/config.yaml', pcutoff=0.25)
     labeled_videos = mn.json_to_videos('/home/pl/Data', '../benv2-synced.json', mult=1)
 
 # Infer trajectories
 dlc.infer_trajectories(labeled_videos)
 
 # Define hyperparameters
-writhing_hparams = {'num_filters': (7, (1, 20)),
-                    'num_filters2': (11, (1, 20)),
-                    'filter_width': (71, (11, 101, 10)),  # must be an odd number
-                    'filter_width2': (91, (11, 101, 10)),  # must be an odd number
-                    'in_channels': 6,  # number of network inputs
+writhing_hparams = {'num_filters': (19, (1, 20)),
+                    'num_filters2': (8, (1, 20)),
+                    'filter_width': (101, (11, 101, 10)),  # must be an odd number
+                    'filter_width2': (31, (11, 101, 10)),  # must be an odd number
+                    'in_channels': 8,  # number of network inputs
                     'weight': 7,  # how much "emphasis" to give to positive labels
                     'loss': torch.nn.functional.binary_cross_entropy,
                     'train_val_split': 1.0}
@@ -35,21 +36,22 @@ itching_hparams = {'num_filters': (15, (1, 20)),
                    'num_filters2': (7, (1, 20)),
                    'filter_width': (21, (11, 101, 10)),  # must be an odd number
                    'filter_width2': (61, (11, 101, 10)),  # must be an odd number
-                   'in_channels': 6,  # number of network inputs
+                   'in_channels': 8,  # number of network inputs
                    'weight': 7,  # how much "emphasis" to give to positive labels
                    'loss': torch.nn.functional.binary_cross_entropy,
                    'train_val_split': 1.0}
 
-hparams = itching_hparams
+behvaior = 'Writhe'
+hparams = writhing_hparams if behvaior == 'Writhe' else itching_hparams
 
 
 # Define Network Input
 def df_map(df):
-    df['head', 'x'] = (df['leftear']['x'] + df['rightear']['x']) / 2
-    df['head', 'y'] = (df['leftear']['y'] + df['rightear']['y']) / 2
-    body_length = mn.dist(df, 'head', 'tail')
-    x = [mn.dist(df, 'leftpaw', 'tail'), mn.dist(df, 'rightpaw', 'tail'), mn.dist(df, 'neck', 'tail'), body_length,
-         df['leftpaw']['likelihood'], df['rightpaw']['likelihood']]
+    # x = [mn.dist(df, 'leftpaw', 'tail'), mn.dist(df, 'rightpaw', 'tail'), mn.dist(df, 'neck', 'tail'), body_length,
+    #      df['leftpaw']['likelihood'], df['rightpaw']['likelihood']]
+    x = [df['hindpaw_right']['likelihood'], df['hindpaw_left']['likelihood'], df['hindheel_right']['likelihood'],
+         df['hindheel_left']['likelihood'], df['frontpaw_left']['likelihood'], df['frontpaw_right']['likelihood'],
+         mn.dist(df, 'tail', 'hindpaw_right'), mn.dist(df, 'tail', 'hindpaw_left')]
     return x
 
 
@@ -70,7 +72,7 @@ class MouseModel(torch.nn.Module):
 
 
 torch.manual_seed(1)  # consistent behavior w/ random seed
-dataset = mn.DLCDataset(labeled_videos, df_map, behavior='Itch')
+dataset = mn.DLCDataset(labeled_videos, df_map, behavior='Writhe')
 
 runner = mn.Runner(MouseModel, hparams, dataset)
 # runner.hyperparemeter_optimization(timeout=600)
@@ -80,9 +82,11 @@ model, auc = runner.train_model(max_epochs=500)
 print(auc)
 
 # Run visualization
-# model.eval()
-# model.cpu()
-# model_out = model(dataset[0][0]).detach()  # get model output
+import pickle
+model.eval()
+model.cpu()
+model_out = model(dataset[0][0]).detach()  # get model output
+pickle.dump((dataset[0][1], model_out), open('vis.pkl', 'wb'))
 # dlc.create_labeled_videos(labeled_videos)  # create labeled video if it doesn't exist
 # # print(f"{model_out[0].max()} {model_out[0].min()}")
 # #
@@ -97,7 +101,6 @@ print(auc)
 
 
 # #
-# pickle.dump((dataset[0][1], model_out), open('vis.pkl', 'wb'))
 # #
 # for video, y, y_hat in zip(labeled_videos, dataset[0][1], model_out):
 #     mn.VisualDebugger(video, y, y_hat)

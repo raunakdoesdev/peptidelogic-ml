@@ -10,7 +10,8 @@ import logging
 from mousenet import util
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
-os.environ["DLClight"] = "True"
+if 'DISPLAY' not in os.environ and os.name != 'nt':  # Disable GUI
+    os.environ["DLClight"] = "True"
 with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
     import deeplabcut
 

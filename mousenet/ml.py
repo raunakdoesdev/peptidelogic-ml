@@ -37,6 +37,12 @@ class Runner:
         lightning_module.model.load_state_dict(lightning_module.best_state_dic)  # grab best model
         return lightning_module, lightning_module.max_auc
 
+    def get_model(self, state_dict):
+        hparams = HParams(self.params)
+        lightning_module = ItchDetector(self.model(hparams), hparams, self.dataset, trial=None)
+        lightning_module.model.load_state_dict(state_dict)  # grab best model
+        return lightning_module
+
     def objective(self, trial):
         return self.train_model(trial=trial)[1]
 

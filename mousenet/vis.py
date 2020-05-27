@@ -1,8 +1,5 @@
 import os
 
-if 'DISPLAY' not in os.environ:
-    os.environ['DISPLAY'] = 'localhost:10.0'  # Enable X11 Forwarding
-
 import PySimpleGUI as sg
 import cv2
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -134,8 +131,8 @@ class VisualDebugger:
 
         # Define frame parameters
         self.cap = cv2.VideoCapture(video.path)  # .labeled_video_path)
-        self.start_frame = video.orig_start
-        self.end_frame = video.orig_end
+        self.start_frame = video.start
+        self.end_frame = video.end
         self.frame_num = self.start_frame
         self.video = video
 

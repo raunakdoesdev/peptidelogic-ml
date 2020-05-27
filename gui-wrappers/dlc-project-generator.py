@@ -1,17 +1,32 @@
-import mousenet as mn
+# import mousenet as mn
 import PySimpleGUI as sg
 
-# proj_name is not None and labeler_name is not None and videos is not None and bodyparts is not None
 
-layout = [[sg.Text('Project Name: '), sg.InputText()], [sg.Text('Labeler Name: '), sg.InputText()],
-          [sg.Listbox(['1', '2', '3'], size=(20, 3)),
-           sg.Column([[sg.Button('+', size=(3, 3))], [sg.Button('-', size=(3, 3))]])]]
+def project_generation():
+    sg.theme('LightGrey1')
+    layout = [[sg.Text('Project Name: '), sg.InputText(key='proj')], [sg.Text('Labeler Name: '), sg.InputText(key='labeler')],
+              [sg.Text('Body Parts:')],
+              [sg.Listbox([], size=(50, 3), key='bodyparts'),
+               sg.Column([[sg.Button('+', size=(3, 1))], [sg.Button('-', size=(3, 1))]])],
+              [sg.Button('Create DLC Project!')]]
 
-window = sg.Window('DLC Model Body Part Labeler', layout)
+    window = sg.Window('DLC Model Body Part Labeler', layout)
 
-while True:
-    event, values = window.read()
-    if event in (None, 'Exit'):
-        break
+    while True:
+        event, values = window.read()
+        if event == '+':
+            bps = window['bodyparts'].GetListValues()
+            bps.append(sg.PopupGetText(message="Enter Body Part Name", title='Get Body Part Name'))
+            window['bodyparts'].update(bps)
+        if event == '-' and len(values['bodyparts']) > 0:
+            bps = window['bodyparts'].GetListValues()
+            for bp in values['bodyparts']:
+                bps.remove(bp)
+            window['bodyparts'].update(bps)
+        if event in (None, 'Exit'):
+            break
 
-window.close()
+    window.close()
+
+if __name__ == '__main__':
+    project_generation()

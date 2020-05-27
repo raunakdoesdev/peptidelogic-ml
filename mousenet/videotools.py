@@ -41,46 +41,26 @@ class LabeledVideo(Video):
         self.df_path = df_path
 
     def calculate_mappings(self, force=False):
-        pass
         mapping_path = self.path.replace('mp4', 'map')
         if self.frame2read is not None and self.read2time is not None:
             return
         elif os.path.exists(mapping_path) and not force:
             self.frame2read, self.read2time = pickle.load(open(mapping_path, 'rb'))
-        # else:
-        #     self.frame2read = {}
-        #     self.read2time = {}
-        #
-        #     cap = cv2.VideoCapture(self.path)
-        #
-        #     for read in tqdm(range(int(cap.get(cv2.CAP_PROP_FRAME_COUNT))),
-        #                      desc=f'{self.path.split("/")[-1]} Read to Time Mapping'):
-        #         _, image = cap.read()
-        #         self.read2time[read] = cap.get(cv2.CAP_PROP_POS_MSEC)
-        #
-        #     for read in tqdm(range(int(cap.get(cv2.CAP_PROP_FRAME_COUNT))),
-        #                      desc=f'{self.path.split("/")[-1]} Frame to Read Mapping'):
-        #         _, image = cap.read()
-        #         cap.set(cv2.CAP_PROP_POS_MSEC, self.read2time[read])
-        #         self.frame2read[int(cap.get(cv2.CAP_PROP_POS_FRAMES))] = read
-        #
-        #         if read == 1000:
-        #             print(self.frame2read)
-        #
-        #     pickle.dump([self.frame2read, self.read2time], open(mapping_path, 'wb'))
-        #
-        # for i in range(list(self.frame2read.keys())[-1]):
-        #     x = self.frame2read.get(i)
-        #     if not x:
-        #         self.frame2read[i] = self.frame2read[i - 1]
+        else:
+            self.frame2read = {}
+            self.read2time = {}
 
-    def frame_to_read(self, frame):
-        # if abs(self.frame2read[int(frame)] - int(frame)) >= 2:
-        #     print(f"THIS IS WORKING! {frame} -> {self.frame2read[int(frame)]}")
-        return int(frame)
+            cap = cv2.VideoCapture(self.path)
+
+            for read in tqdm(range(int(cap.get(cv2.CAP_PROP_FRAME_COUNT))),
+                             desc=f'{self.path.split("/")[-1]} Read to Time Mapping'):
+                _, image = cap.read()
+                self.read2time[read] = cap.get(cv2.CAP_PROP_POS_MSEC)
+
+            pickle.dump([self.frame2read, self.read2time], open(mapping_path, 'wb'))
 
 
-def folder_to_videos(video_folder, skip_words=('filtered_labeled',), paths=False):
+def folder_to_videos(video_folder, skip_words=('filtered_labeled',), required_words=[], paths=False, labeled=False):
     """
     Returns list of video objects from given folder.
     :param video_folder:
@@ -95,11 +75,17 @@ def folder_to_videos(video_folder, skip_words=('filtered_labeled',), paths=False
     video_paths += glob.glob(os.path.join(video_folder, "ASLKDFJSLD.mp4").replace('ASLKDFJSLD', '/*'))
 
     for video_path in video_paths:
+        for required_word in required_words:
+            if required_word not in video_path:
+                video_paths.remove(video_path)
+                break
         for skip_word in skip_words:
             if skip_word in video_path:
                 video_paths.remove(video_path)
                 break
 
+    if labeled:
+        return video_paths if paths else [LabeledVideo(video_path) for video_path in video_paths]
     return video_paths if paths else [Video(video_path) for video_path in video_paths]
 
 
