@@ -1,4 +1,5 @@
 import copy
+import warnings
 
 import numpy as np
 import optuna
@@ -6,6 +7,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import Trainer
+import sklearn
 
 
 class HParams:
@@ -35,6 +37,7 @@ class Runner:
         self.tune_lr(trainer, lightning_module)
         trainer.fit(lightning_module)
         lightning_module.model.load_state_dict(lightning_module.best_state_dic)  # grab best model
+        print(lightning_module.report)
         return lightning_module, lightning_module.max_auc
 
     def get_model(self, state_dict):
@@ -90,27 +93,20 @@ class ItchDetector(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
-        weight = self.hparams.weight * (y == 1) + (y == 0).float()
-        return {'loss': F.binary_cross_entropy(y_hat, y, weight=weight)}
+        return {'loss': self.hparams.loss(y_hat, y, weight=self.hparams.weight)}
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
-        weight = (self.hparams.weight * (y == 1) + (y == 0)).float()
-
-        tpr = [0]
-        fpr = [0]
-        epsilon = 0.1
-        thresh = 1
-        auc = 0
-        while thresh >= 0:
-            pred_y = y_hat >= thresh
-            tpr.append(float(torch.sum((y == pred_y) * (y == 1))) / float(torch.sum(y)))
-            fpr.append(float(torch.sum((y != pred_y) * (y == 0))) / float(torch.sum(y == 0)))
-            auc += (fpr[-1] - fpr[-2]) * (tpr[-2] + tpr[-1]) / 2
-            thresh -= epsilon
-        return {'loss': F.binary_cross_entropy(y_hat, y, weight=weight),
-                'auc': auc}
+        _, predicted = torch.max(y_hat.data, 1)
+        predicted = predicted.contiguous().view(-1).cpu()
+        ground_truth = y.contiguous().view(-1).cpu()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            f1 = sklearn.metrics.f1_score(ground_truth, predicted, average='weighted', labels=[1, 2])
+            return {'loss': self.hparams.loss(y_hat, y, weight=self.hparams.weight),
+                    'auc': f1,
+                    'report': sklearn.metrics.classification_report(ground_truth, predicted, labels=np.unique(predicted))}
 
     def train_dataloader(self):
         return self.train_set
@@ -123,6 +119,8 @@ class ItchDetector(pl.LightningModule):
         avg_auc = np.mean([x['auc'] for x in outputs])
         log = {'val_loss': avg_loss, 'val_auc': avg_auc}
         log['log'] = copy.deepcopy(log)
+
+        self.report = outputs[0]['report']
 
         if self.max_auc is None or self.max_auc < avg_auc:
             self.max_auc = avg_auc

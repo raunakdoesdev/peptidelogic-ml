@@ -77,3 +77,37 @@ class DLCDataset(Dataset):
         d1.y, d2.y = y1, y2
 
         return d2, d1
+
+
+class MulticlassDataset(DLCDataset):
+    def __init__(self, videos, input_map, behavior_map={'Writhe': 1, 'Itch': 2}, multiplier=1.0, only_x=False):
+        self.x = []
+        self.y = []
+        self.videos = videos
+        self.mx = None
+        self.my = None
+        self.only_x = only_x
+        real_videos = []
+
+        self.video_splits = []
+
+        for video in self.videos:
+            for behavior in video.ground_truth:
+                try:
+                    df = pd.read_hdf(video.df_path)
+                except ValueError:
+                    logging.error(f"SKIPPING VIDEO {video.path} due to corrupted data frame!")
+                    continue
+
+                df = df[df.columns.get_level_values(0).unique()[0]]
+
+                ground_truth = (torch.load(video.ground_truth[behavior]) * behavior_map[behavior]).long()
+                self.y.append(ground_truth)
+                df = df.iloc[int(video.start): int(video.end)]
+
+                self.x.append(torch.cat(
+                    [F.normalize(torch.FloatTensor(flag.to_numpy()), dim=0).unsqueeze(0) for flag in
+                     input_map(df)]))
+                real_videos.append(video)
+
+        self.videos = real_videos
