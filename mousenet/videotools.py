@@ -60,7 +60,7 @@ class LabeledVideo(Video):
             pickle.dump([self.frame2read, self.read2time], open(mapping_path, 'wb'))
 
 
-def folder_to_videos(video_folder, skip_words=('filtered_labeled',), required_words=[], paths=False, labeled=False):
+def folder_to_videos(video_folder, skip_words=('labeled',), required_words=[], paths=False, labeled=False):
     """
     Returns list of video objects from given folder.
     :param video_folder:

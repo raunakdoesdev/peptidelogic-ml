@@ -6,6 +6,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import Trainer
+from sklearn import metrics
 
 
 class HParams:
@@ -23,30 +24,32 @@ class Runner:
         self.model = model
         self.params = params
         self.dataset = dataset
+        self.lightning_module = None
+        self.trainer = None
 
     def train_model(self, max_epochs=500, trial=None):
         import os
         if os.name == 'nt':
-            trainer = Trainer(max_epochs=max_epochs)
+            self.trainer = Trainer(max_epochs=max_epochs)
         else:
-            trainer = Trainer(gpus=1, max_epochs=max_epochs)
+            self.trainer = Trainer(gpus=1, max_epochs=max_epochs)
         hparams = HParams(self.params, trial)
-        lightning_module = ItchDetector(self.model(hparams), hparams, self.dataset, trial)
-        self.tune_lr(trainer, lightning_module)
-        trainer.fit(lightning_module)
-        lightning_module.model.load_state_dict(lightning_module.best_state_dic)  # grab best model
-        return lightning_module, lightning_module.max_auc
+        self.lightning_module = ItchDetector(self.model(hparams), hparams, self.dataset, trial)
+        self.tune_lr(self.trainer)
+        self.trainer.fit(self.lightning_module)
+        self.lightning_module.model.load_state_dict(self.lightning_module.best_state_dic)  # grab best model
+        return self.lightning_module, self.lightning_module.max_auc
 
     def get_model(self, state_dict):
         hparams = HParams(self.params)
-        lightning_module = ItchDetector(self.model(hparams), hparams, self.dataset, trial=None)
-        lightning_module.model.load_state_dict(state_dict)  # grab best model
-        return lightning_module
+        self.lightning_module = ItchDetector(self.model(hparams), hparams, self.dataset, trial=None)
+        self.lightning_module.model.load_state_dict(state_dict)  # grab best model
+        return self.lightning_module
 
     def objective(self, trial):
         return self.train_model(trial=trial)[1]
 
-    def hyperparemeter_optimization(self, n_trials=1000, timeout=600):
+    def hyperparemeter_optimization(self, n_trials=None, timeout=None):
         pruner = optuna.pruners.SuccessiveHalvingPruner()
         study = optuna.create_study(direction="maximize", pruner=pruner)
         try:
@@ -62,17 +65,22 @@ class Runner:
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
 
-    def tune_lr(self, trainer, lightning_module):
-        lr_finder = trainer.lr_find(lightning_module)
+        return trial.value
+
+    def tune_lr(self, trainer):
+        lr_finder = trainer.lr_find(self.lightning_module)
         new_lr = lr_finder.suggestion()
-        lightning_module.hparams.learning_rate = new_lr
+        self.lightning_module.hparams.learning_rate = new_lr
 
 
 class ItchDetector(pl.LightningModule):
     def __init__(self, model, hparams, dataset, trial=None):
         super().__init__()
-        self.train_set, self.val_set = dataset.split_dataset(0.75)
-        self.train_set, _ = self.train_set.split_dataset(hparams.train_val_split)
+        if hparams.percent_data is None:
+            self.test_set, self.val_set, self.train_set = dataset.split_dataset([0.15, 0.15, 0.7])
+        else:
+            self.test_set, self.val_set, _, self.train_set = dataset.split_dataset(
+                [0.15, 0.15, 0.7 * (1 - hparams.percent_data), 0.7 * hparams.percent_data])
 
         print(f'Training Set Size: {self.train_set[0][0].shape}')
         print(f'Validation Set Size: {self.val_set[0][0].shape}')
@@ -93,27 +101,17 @@ class ItchDetector(pl.LightningModule):
         weight = self.hparams.weight * (y == 1) + (y == 0).float()
         return {'loss': F.binary_cross_entropy(y_hat, y, weight=weight)}
 
+    def train_dataloader(self):
+        return self.train_set
+
     def validation_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
         weight = (self.hparams.weight * (y == 1) + (y == 0)).float()
-
-        tpr = [0]
-        fpr = [0]
-        epsilon = 0.1
-        thresh = 1
-        auc = 0
-        while thresh >= 0:
-            pred_y = y_hat >= thresh
-            tpr.append(float(torch.sum((y == pred_y) * (y == 1))) / float(torch.sum(y)))
-            fpr.append(float(torch.sum((y != pred_y) * (y == 0))) / float(torch.sum(y == 0)))
-            auc += (fpr[-1] - fpr[-2]) * (tpr[-2] + tpr[-1]) / 2
-            thresh -= epsilon
+        y_true = y.contiguous().view(-1).cpu()
+        y_pred = y_hat.contiguous().view(-1).cpu()
         return {'loss': F.binary_cross_entropy(y_hat, y, weight=weight),
-                'auc': auc}
-
-    def train_dataloader(self):
-        return self.train_set
+                'auc': metrics.average_precision_score(y_true, y_pred)}
 
     def val_dataloader(self):
         return self.val_set
@@ -135,6 +133,41 @@ class ItchDetector(pl.LightningModule):
             if self.trial.should_prune():
                 message = "Trial was pruned at epoch {}.".format(self.current_epoch)
                 raise optuna.exceptions.TrialPruned(message)
+        return log
+
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self(x)
+        weight = (self.hparams.weight * (y == 1) + (y == 0)).float()
+
+        y_true = y.contiguous().view(-1).cpu()
+        y_pred = y_hat.contiguous().view(-1).cpu()
+        auc = metrics.roc_auc_score(y_true, y_pred)
+
+        thresholds = [0.2, 0.5, 0.7, 0.9]
+        specificity = []
+        sensitivity = []
+        precision = []
+        for threshold in thresholds:
+            tn, fp, fn, tp = metrics.confusion_matrix(y_true, y_pred > threshold).ravel()
+            sensitivity.append(tp / (tp + fn))
+            specificity.append(tn / (tn + fp))
+            precision.append(tp / (tp + fp))
+
+        return {'loss': F.binary_cross_entropy(y_hat, y, weight=weight),
+                'auc': np.array(auc), 'specificity': np.array(specificity), 'sensitivity': np.array(sensitivity),
+                'average_precision': metrics.average_precision_score(y_true, y_pred),
+                'precision': np.array(precision),
+                'thresholds': np.array(thresholds)}
+
+    def test_dataloader(self):
+        return self.test_set
+
+    def test_epoch_end(self, outputs):
+        log = {}
+        for key in outputs[0].keys():
+            log[key] = outputs[0][key]
+        self.test_log = log
         return log
 
     def configure_optimizers(self):

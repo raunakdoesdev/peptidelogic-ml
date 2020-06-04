@@ -120,10 +120,18 @@ class AlignmentChecker:
 
 
 class VisualDebugger:
-    def __init__(self, video: mn.LabeledVideo, y, y_hat):
+    def __init__(self, video: mn.LabeledVideo, y, y_hat, scaling=0.8):
+        self.scaling = scaling
         sg.theme('LightGrey1')  # Define GUI Theme
         import pickle
         # self.read2time, self.frame2read = pickle.load(open('maps.pkl', 'rb'))
+
+        # # Scaled window
+        # layout = [[sg.Text('')]]
+        # scaling_window = sg.Window('Window Title', layout, no_titlebar=True, auto_close=False,
+        #                            alpha_channel=0).Finalize()
+        # scaling_window.TKroot.tk.call('tk', 'scaling', self.scaling)
+        # scaling_window.close()
 
         self.y = y
         self.y_hat = y_hat
@@ -146,11 +154,11 @@ class VisualDebugger:
         layout = [[sg.Text("     ", background_color='white'), sg.Image(key='video')],
                   [sg.Canvas(key='canvas')],
                   [sg.Text("     ", background_color='white'),
-                   sg.Slider(range=(self.start_frame, self.end_frame), default_value=self.start_frame, size=(55, 10),
+                   sg.Slider(range=(self.start_frame, self.end_frame), default_value=self.start_frame, size=(int(55 * self.scaling), int(10 * self.scaling)),
                              orientation='h', key='Frame Slider', enable_events=True, disable_number_display=True),
-                   sg.Spin([str(i) for i in range(self.start_frame, self.end_frame)], size=(9, 10), key='Frame Picker',
+                   sg.Spin([str(i) for i in range(self.start_frame, self.end_frame)], size=(int(9 * self.scaling), int(10 * self.scaling)), key='Frame Picker',
                            initial_value=str(self.start_frame)),
-                   sg.Button('GO', size=(5, 1)),
+                   sg.Button('GO', size=(int(5 * self.scaling), 1)),
                    sg.Combo(values=[-10, -5, -3, -1, 1, 3, 5, 10], default_value=1, key='Speed', readonly=True)]]
 
         self.window = sg.Window('Visual Debugger', layout, return_keyboard_events=True)
@@ -172,7 +180,7 @@ class VisualDebugger:
         return True
 
     def _init_plot(self):
-        self.fig = Figure(figsize=(9, 4))
+        self.fig = Figure(figsize=(9*self.scaling, 4*self.scaling))
         self.axes = []
         for axis in range(1, len(self.dpts) + 1):
             self.axes.append(self.fig.add_subplot(len(self.dpts), 1, axis))
@@ -192,12 +200,15 @@ class VisualDebugger:
         elif event == 'GO':
             frame_num = int(values['Frame Picker'])
             self.window['Frame Slider'].update(frame_num)
+            print("Hello")
         elif self.play or event == 'd':
+            frame_num += float(values['Speed'])
             self.window['Frame Slider'].update(frame_num)
             self.window['Frame Picker'].update(str(frame_num))
-            frame_num += float(values['Speed'])
         elif self.play or event == 'a':
             frame_num -= float(values['Speed'])
+            self.window['Frame Picker'].update(str(frame_num))
+            self.window['Frame Slider'].update(frame_num)
         elif event == 'r':
             self.window['Speed'].update(-float(values['Speed']))
         else:
@@ -209,7 +220,9 @@ class VisualDebugger:
         return True
 
     def _update_video(self):
-        keys = (('leftear', (0, 255, 0)), ('rightear', (0, 255, 0)), ('tail', (0, 0, 255)))
+        keys = (('hindpaw_right', (0, 255, 0)), ('hindpaw_left', (0, 255, 0)), ('hindheel_right', (0, 0, 255)),
+                ('hindheel_left', (0, 255, 0)), ('frontpaw_left', (0, 255, 0)), ('frontpaw_right', (0, 255, 0)),
+                ('tail', (0, 255, 0)),)
 
         try:
             self.cap.set(cv2.CAP_PROP_POS_MSEC, self.video.read2time[int(self.frame_num)])
@@ -218,6 +231,8 @@ class VisualDebugger:
                 if self.df[key]['likelihood'][self.frame_num] > 0.9:
                     x, y = self.df[key]['x'][self.frame_num], self.df[key]['y'][self.frame_num]
                     cv2.circle(frame, (int(x), int(y)), 3, color, 6)
+            frame = cv2.resize(frame, (int(frame.shape[1] * self.scaling), int(frame.shape[0] * self.scaling)),
+                               interpolation=cv2.INTER_AREA)
             imgbytes = cv2.imencode('.png', frame)[1].tobytes()
             self.window['video'].update(data=imgbytes)
         except Exception as e:
@@ -237,7 +252,7 @@ class VisualDebugger:
                 axis.set_ylim([-0.2, 1.2])
                 axis.axvline(0, c='r')
                 idx = int(self.frame_num - self.start_frame)
-                axis.plot(range(100), data[idx: idx + 100].detach())
+                axis.plot(range(100), data[idx: idx + 100])
             self.fig_agg.draw()
         except Exception as e:
             logging.exception(e)

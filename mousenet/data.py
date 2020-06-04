@@ -63,17 +63,19 @@ class DLCDataset(Dataset):
 
     # noinspection PyTypeChecker
     def split_dataset(self, train_val_split):
-        x1, x2, y1, y2 = [], [], [], []
-        for i in range(len(self.x)):
-            size = round((1.0 - train_val_split) * self.y[i].shape[0])
-            x1.append(self.x[i][:, :size])
-            x2.append(self.x[i][:, size:])
-            y1.append(self.y[i][:size])
-            y2.append(self.y[i][size:])
+        datasets = []
 
-        d1 = DLCDataset(None, None, behavior=None)
-        d2 = DLCDataset(None, None, behavior=None)
-        d1.x, d2.x = x1, x2
-        d1.y, d2.y = y1, y2
+        start_pos = [0] * len(self.y)
+        for split in train_val_split:
+            x, y = [], []
+            for i in range(len(self.y)):
+                size = round(split * self.y[i].shape[0])
+                x.append(self.x[i][:, start_pos[i]:start_pos[i] + size])
+                y.append(self.y[i][start_pos[i]:start_pos[i] + size])
+                start_pos[i] = start_pos[i] + size
+            split_dataset = DLCDataset(None, None, behavior=None)
+            split_dataset.x = x
+            split_dataset.y = y
+            datasets.append(split_dataset)
 
-        return d2, d1
+        return datasets

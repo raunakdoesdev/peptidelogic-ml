@@ -1,26 +1,26 @@
+import pathlib
+import sys
+
+sys.path.append(str(pathlib.Path(__file__).parent.absolute().parent.absolute()))
+
 import logging
 
 import torch
 
 import mousenet as mn
 
+video_num = 0  # <-- WHICH VIDEO YOU WANT TO VISUALIZE (0, 1, 2, etc.)
+SCALING = 0.8
+
 logging.getLogger().setLevel(logging.DEBUG)  # Log all info
 
-import os
-
-if os.name == 'nt':
-    dlc = mn.DLCProject(config_path='D:\Peptide Logic\Writhing\config.yaml', pcutoff=0.25)
-
-    labeled_videos = mn.json_to_videos(r'D:\Peptide Logic\Writhing', '../benv2-synced.json', mult=1)
-
-else:
-    dlc = mn.DLCProject(config_path='/home/pl/pl-ml/Retraining-BenR-2020-05-25/config.yaml')
-    # dlc = mn.DLCProject(config_path='/home/pl/sauhaarda/peptide_logic_refactored/dlc/'
-    #                                 'mouse_behavior_id-sauhaarda-2020-01-24/config.yaml', pcutoff=0.25)
-    labeled_videos = mn.json_to_videos('/home/pl/Data', '../benv2-synced.json', mult=1)
+dlc = mn.DLCProject(config_path='/home/pl/Retraining-BenR-2020-05-25/config.yaml')
+labeled_videos = mn.json_to_videos('/home/pl/Data', '../benv2-synced.json', mult=1)
 
 # Infer trajectories
 dlc.infer_trajectories(labeled_videos)
+print(labeled_videos[0].df_path)
+print(labeled_videos[1].df_path)
 
 # Define hyperparameters
 writhing_hparams = {'num_filters': (19, (1, 20)),
@@ -49,6 +49,7 @@ hparams = writhing_hparams if behvaior == 'Writhe' else itching_hparams
 def df_map(df):
     # x = [mn.dist(df, 'leftpaw', 'tail'), mn.dist(df, 'rightpaw', 'tail'), mn.dist(df, 'neck', 'tail'), body_length,
     #      df['leftpaw']['likelihood'], df['rightpaw']['likelihood']]
+    print(df.head(2))
     x = [df['hindpaw_right']['likelihood'], df['hindpaw_left']['likelihood'], df['hindheel_right']['likelihood'],
          df['hindheel_left']['likelihood'], df['frontpaw_left']['likelihood'], df['frontpaw_right']['likelihood'],
          mn.dist(df, 'tail', 'hindpaw_right'), mn.dist(df, 'tail', 'hindpaw_left')]
@@ -81,27 +82,9 @@ runner = mn.Runner(MouseModel, hparams, dataset)
 model, auc = runner.train_model(max_epochs=500)
 print(auc)
 
-# Run visualization
-import pickle
-model.eval()
-model.cpu()
-model_out = model(dataset[0][0]).detach()  # get model output
-pickle.dump((dataset[0][1], model_out), open('vis.pkl', 'wb'))
-# dlc.create_labeled_videos(labeled_videos)  # create labeled video if it doesn't exist
-# # print(f"{model_out[0].max()} {model_out[0].min()}")
-# #
+model_out = model(dataset[0][0].cuda()).cpu().detach().numpy()  # get model output
+y, y_hat = dataset[0][1].cpu().detach().numpy(), model_out
 
-
-# vid = 0
-# mx, my = dataset[0]
-# print(my.shape)
-# plt.plot(list(range(len(my[vid]))), my[vid], color='red')
-# # plt.plot(list(range(len(my[vid]))), model_out[vid], color='blue')
-# plt.savefig('PLOT.png')
-
-
-# #
-# #
-# for video, y, y_hat in zip(labeled_videos, dataset[0][1], model_out):
-#     mn.VisualDebugger(video, y, y_hat)
-#     break  # only visualize first video for now
+video = labeled_videos[video_num]
+video.calculate_mappings()
+mn.VisualDebugger(video, y[video_num], y_hat[video_num], scaling=SCALING)

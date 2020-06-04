@@ -120,8 +120,8 @@ class DLCProject:
         return deeplabcut.auxiliaryfunctions.GetScorerName(cfg, shuffle, train_fraction,
                                                            trainingsiterations=trainingsiterations)
 
-    def infer_trajectories(self, videos, num_procs=None, infer=True,
-                           scorer_name='DeepCut_resnet50_mouse_behavior_idJan24shuffle1_200000'):
+    def infer_trajectories(self, videos, num_procs=None, infer=True,):
+        scorer_name = self.get_scorer_name()
         uninferred_video_paths = []
 
         with util.DisableLogger():
@@ -149,7 +149,8 @@ class DLCProject:
 
                     for proc in range(num_procs):
                         pool.apply_async(deeplabcut.analyze_videos, (self.config_path, chunked_video_paths[proc],),
-                                         {'save_as_csv': True, 'gputouse': proc % num_gpus})
+                                         {'save_as_csv': True, 'gputouse': proc % num_gpus,
+                                          'position': proc})
 
                     pool.close()
                     pool.join()
