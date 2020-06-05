@@ -30,7 +30,7 @@ writhing_hparams = {'num_filters': (19, (1, 20)),
                     'in_channels': 8,  # number of network inputs
                     'weight': 7,  # how much "emphasis" to give to positive labels
                     'loss': torch.nn.functional.binary_cross_entropy,
-                    'train_val_split': 1.0}
+                    'percent_data': None}
 
 itching_hparams = {'num_filters': (15, (1, 20)),
                    'num_filters2': (7, (1, 20)),
@@ -76,9 +76,6 @@ torch.manual_seed(1)  # consistent behavior w/ random seed
 dataset = mn.DLCDataset(labeled_videos, df_map, behavior='Writhe')
 
 runner = mn.Runner(MouseModel, hparams, dataset)
-# runner.hyperparemeter_optimization(timeout=600)
-
-# print(dataset[0][0].shape)
 model, auc = runner.train_model(max_epochs=500)
 print(auc)
 

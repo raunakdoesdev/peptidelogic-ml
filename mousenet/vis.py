@@ -154,9 +154,11 @@ class VisualDebugger:
         layout = [[sg.Text("     ", background_color='white'), sg.Image(key='video')],
                   [sg.Canvas(key='canvas')],
                   [sg.Text("     ", background_color='white'),
-                   sg.Slider(range=(self.start_frame, self.end_frame), default_value=self.start_frame, size=(int(55 * self.scaling), int(10 * self.scaling)),
+                   sg.Slider(range=(self.start_frame, self.end_frame), default_value=self.start_frame,
+                             size=(int(55 * self.scaling), int(10 * self.scaling)),
                              orientation='h', key='Frame Slider', enable_events=True, disable_number_display=True),
-                   sg.Spin([str(i) for i in range(self.start_frame, self.end_frame)], size=(int(9 * self.scaling), int(10 * self.scaling)), key='Frame Picker',
+                   sg.Spin([str(i) for i in range(self.start_frame, self.end_frame)],
+                           size=(int(9 * self.scaling), int(10 * self.scaling)), key='Frame Picker',
                            initial_value=str(self.start_frame)),
                    sg.Button('GO', size=(int(5 * self.scaling), 1)),
                    sg.Combo(values=[-10, -5, -3, -1, 1, 3, 5, 10], default_value=1, key='Speed', readonly=True)]]
@@ -180,7 +182,7 @@ class VisualDebugger:
         return True
 
     def _init_plot(self):
-        self.fig = Figure(figsize=(9*self.scaling, 4*self.scaling))
+        self.fig = Figure(figsize=(9 * self.scaling, 4 * self.scaling))
         self.axes = []
         for axis in range(1, len(self.dpts) + 1):
             self.axes.append(self.fig.add_subplot(len(self.dpts), 1, axis))
@@ -225,7 +227,8 @@ class VisualDebugger:
                 ('tail', (0, 255, 0)),)
 
         try:
-            self.cap.set(cv2.CAP_PROP_POS_MSEC, self.video.read2time[int(self.frame_num)])
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, self.frame_num)
+            # self.cap.set(cv2.CAP_PROP_POS_MSEC, self.video.read2time[int(self.frame_num)])
             _, frame = self.cap.read()
             for key, color in keys:
                 if self.df[key]['likelihood'][self.frame_num] > 0.9:

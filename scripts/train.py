@@ -24,7 +24,6 @@ writhing_hparams = {'num_filters': (16, (1, 20)),
                     'in_channels': 30,  # number of network inputs
                     'weight': (9, (1, 20)),  # how much "emphasis" to give to positive labels
                     'loss': torch.nn.functional.binary_cross_entropy,
-                    'train_val_split': 1.0,
                     'percent_data': None}
 
 

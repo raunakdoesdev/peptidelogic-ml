@@ -41,7 +41,7 @@ class LabeledVideo(Video):
         self.df_path = df_path
 
     def calculate_mappings(self, force=False):
-        mapping_path = self.path.replace('mp4', 'map')
+        mapping_path = self.path.replace('mp4', 'new_map')
         if self.frame2read is not None and self.read2time is not None:
             return
         elif os.path.exists(mapping_path) and not force:

@@ -50,10 +50,10 @@ def video_labeler(videos):
     video_dic = {}
     read2time = {}
 
-    map_path = videos[0].replace('mp4', 'rmap')
+    map_path = videos[0].replace('mp4', 'map')
     num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     if os.path.exists(map_path):
-        read2time = pickle.load(open(map_path, 'rb'))
+        _, read2time = pickle.load(open(map_path, 'rb'))
     else:
         for read in tqdm(range(num_frames), desc='Read to Time Mapping'):
             _, image = cap.read()
