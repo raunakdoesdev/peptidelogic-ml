@@ -139,7 +139,7 @@ class DLCProject:
             else:
                 logging.warning(f'Label file exists @ {label_path}. Skipping inference on {video.path}')
 
-        if len(uninferred_video_paths) > 0:
+        if infer and len(uninferred_video_paths) > 0:
             with util.DisableLogger():
                 with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
                     num_gpus = 4

@@ -1,74 +1,95 @@
-from sklearn import ensemble
-from sklearn.tree import DecisionTreeClassifier
-import numpy as np
-import mousenet as mn
-import torch
-from sklearn.utils import resample
 import os
+import pickle
+from enum import Enum
+
+import numpy as np
+from sklearn import ensemble
+from sklearn import metrics
+from sklearn.metrics import ConfusionMatrixDisplay
+from sklearn.model_selection import train_test_split, KFold
+from tqdm import tqdm
+import multiprocessing as mp
+import mousenet as mn
 import xgboost as xgb
 
-
 dlc = mn.DLCProject(config_path='/home/pl/Retraining-BenR-2020-05-25/config.yaml')
-labeled_videos = mn.json_to_videos('/home/pl/Data', '../benv2-synced.json', mult=1)
+labeled_videos = mn.json_to_videos('/home/pl/Data', '../2020-06-03_ben-synced.json', mult=1)
 dlc.infer_trajectories(labeled_videos)
+X_train, X_test, y_train, y_test, X, y = mn.get_sklearn_dataset(labeled_videos, window_size=100, test_size=0.25)
 
-video = labeled_videos[0]
-import pandas as pd
+# X_train, X_test, y_train, y_test = train_test_split(labeled_videos, window_size=20, test_size=0.25)
 
-dfs = []
-ys = []
-for video in labeled_videos:
-    if 'Writhe' not in video.ground_truth:
-        continue
-    df = pd.read_hdf(video.df_path)
-    df = df[df.columns.get_level_values(0).unique()[0]]
-    df = df.iloc[int(video.start): int(video.end)]
+# train_test_split(X, y, test_size=0.1, shuffle=False)
 
-    # cols = []
-    # for col in df.columns:
-    #     if 'likelihood' in col[1]:
-    #         cols.append(col)
-    # df = df[cols]
-
-    dfs.append(df)
-
-    y = torch.load(video.ground_truth['Writhe']).numpy()
-    ys.append(y)
-
-df = pd.concat(dfs, ignore_index=True)
-y = np.concatenate(ys)
-X = df[df.columns]
-
-# window_size = 20
-# new_df = df.copy(deep=True)
-# for i in range(-window_size // 2, 1 + window_size // 2):
-#     for col in df.columns:
-#         new_df[col[0], col[1] + str(i)] = df[col].shift(i)
+# data_dmatrix = xgb.DMatrix(data=X, label=y)
 #
-# new_df.fillna(value=0, inplace=True)
-# X = new_df[new_df.columns]
+# cv_results = xgb.cv(dtrain=data_dmatrix, params={'objective': 'binary:logistic', 'nthread': mp.cpu_count(), },
+#                     nfold=3, shuffle=False, num_boost_round=50, early_stopping_rounds=10, metrics="aucpr",
+#                     as_pandas=True, seed=123)
 
-split = 0.25
-X_test = X[:int(split * len(X))]
-X_train = X[int(split * len(X)):]
-y_test = y[:int(split * len(y))]
-y_train = y[int(split * len(y)):]
-
-print(X_test.shape)
-print(X_train.shape)
-print(y_test.shape)
-print(y_train.shape)
-
-data_dmatrix = xgb.DMatrix(data=X,label=y)
+data_dmatrix = xgb.DMatrix(data=X_train, label=y_train)
+val_dmatrix = xgb.DMatrix(data=X_test, label=y_test)
 
 
-clf = ensemble.AdaBoostClassifier()
+def prauc(pred, dtrain):
+    lab = dtrain.get_label()
+    return 'PRAUC', metrics.average_precision_score(lab, pred)
 
-# Train the model using the training sets y_pred=clf.predict(X_test)
-clf.fit(X_train, y_train)
 
-y_pred = clf.predict(X_test)
+model_path = 'XGB.save'
+force = False
 
-from sklearn import metrics
+if force or not os.path.exists(model_path):
+    clf = xgb.train(dtrain=data_dmatrix, params={'objective': 'binary:logistic', 'nthread': mp.cpu_count(), },
+                    num_boost_round=200, evals=[(val_dmatrix, 'val_set')], early_stopping_rounds=30,
+                    feval=prauc, maximize=True)
+    pickle.dump(clf, open(model_path, 'wb'))
+else:
+    clf = pickle.load(open(model_path, 'rb'))
 
-print("Average Precision:", metrics.average_precision_score(y_test, y_pred))
+y_pred_raw = clf.predict(xgb.DMatrix(data=X_test))
+print('Average Precision', metrics.average_precision_score(y_test, y_pred_raw))
+print("AUC", metrics.roc_auc_score(y_test, y_pred_raw))
+
+# kf = KFold(n_splits=4)
+# metrics_log = mn.util.AverageLogger()
+# for train_index, test_index in tqdm(kf.split(X)):
+#     X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+#     y_train, y_test = y[train_index], y[test_index]
+#     # clf = ensemble.RandomForestClassifier(n_estimators=300, verbose=True, n_jobs=multiprocessing.cpu_count(), bootstrap=False)
+#     clf = xgboost.XGBClassifier()
+#     clf.fit(X_train, y_train)
+#
+#     y_pred_raw = clf.predict(X_test)
+#     metrics_log.update('Average Precision', metrics.average_precision_score(y_test, y_pred_raw))
+#     metrics_log.update("AUC", metrics.roc_auc_score(y_test, y_pred_raw))
+#     metrics_log.update("Confusion Matrix", metrics.confusion_matrix(y_test, y_pred_raw))
+#
+# metrics_log.print()
+
+#
+# # #
+# # # # Infer on Full Video --> Visualize
+threshold = 0.7
+y_pred_raw = clf.predict(xgb.DMatrix(data=X))
+y_pred_thresh = y_pred_raw > threshold
+
+
+class ClassificationTypes(Enum):
+    TRUE_NEGATIVE = 0
+    TRUE_POSITIVE = 1
+    FALSE_NEGATIVE = 2
+    FALSE_POSITIVE = 3
+
+
+class_tensor = ((y_pred_thresh == 0) * (y == 0)) * ClassificationTypes.TRUE_NEGATIVE.value + \
+               ((y_pred_thresh == 1) * (y == 1)) * ClassificationTypes.TRUE_POSITIVE.value + \
+               ((y_pred_thresh == 0) * (y == 1)) * ClassificationTypes.FALSE_NEGATIVE.value + \
+               ((y_pred_thresh == 1) * (y == 0)) * ClassificationTypes.FALSE_POSITIVE.value
+
+print("Average Precision:", metrics.average_precision_score(y, y_pred_raw))
+print("AUC:", metrics.roc_auc_score(y, y_pred_raw))
+print("Confusion Matrix:", metrics.confusion_matrix(y, y_pred_thresh))
+print(class_tensor)
+
+#

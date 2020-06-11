@@ -15,7 +15,7 @@ SCALING = 0.6
 logging.getLogger().setLevel(logging.DEBUG)  # Log all info
 
 dlc = mn.DLCProject(config_path='/home/pl/Retraining-BenR-2020-05-25/config.yaml')
-labeled_videos = mn.folder_to_videos('/home/pl/Data/mWT SR 017 (PL 100960 DRC IV)_renamed', labeled=True)
+labeled_videos = mn.folder_to_videos('/home/pl/Data/mWT SR 017 (PL 100960 DRC IV)_renamed', labeled=True, required_words=('191105_M3_R3', 'CFS'))
 
 # Infer trajectories
 dlc.infer_trajectories(labeled_videos)
@@ -23,7 +23,7 @@ dlc.infer_trajectories(labeled_videos)
 torch.manual_seed(1)  # consistent behavior w/ random seed
 
 video = labeled_videos[video_num]
-video.calculate_mappings()
+# video.calculate_mappings()
 video: mn.LabeledVideo = video
 import pickle
 print(video.ground_truth)

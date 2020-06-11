@@ -1,6 +1,7 @@
 from itertools import islice
 import logging
 import torch
+import numpy as np
 
 
 def in_range(event_ranges, frame_num, map=None):
@@ -8,7 +9,6 @@ def in_range(event_ranges, frame_num, map=None):
         return any([int(min) <= int(frame_num) < int(max) for min, max in event_ranges])
     if map is not None:
         return any([int(map(min)) <= int(frame_num) < int(map(max)) for min, max in event_ranges])
-
 
 
 class DisableLogger():
@@ -63,3 +63,18 @@ def translate(value, leftMin, leftMax, rightMin, rightMax):
 
     # Convert the 0-1 range into a value in the right range.
     return rightMin + (valueScaled * rightSpan)
+
+
+class AverageLogger:
+    def __init__(self):
+        self.dic = {}
+
+    def update(self, key, new_val):
+        if key in self.dic:
+            self.dic[key].append(new_val)
+        else:
+            self.dic[key] = [new_val]
+
+    def print(self):
+        for key in self.dic.keys():
+            print(f'{key} -> {np.mean(self.dic[key])}')

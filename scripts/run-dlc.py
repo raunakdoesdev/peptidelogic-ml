@@ -117,7 +117,7 @@ map = {'BW_MWT_191104_M4_R1': 'Vehicle(N/A)',
 model = train_writhing_network()
 
 # Setup DLC Project
-dlc = mn.DLCProject(config_path='/home/pl/pl-ml/Retraining-BenR-2020-05-25/config.yaml')
+dlc = mn.DLCProject(config_path='/home/pl/Retraining-BenR-2020-05-25/config.yaml')
 
 # Infer trajectories
 videos = mn.folder_to_videos('/home/pl/Data/mWT SR 017 (PL 100960 DRC IV)_renamed', labeled=True)

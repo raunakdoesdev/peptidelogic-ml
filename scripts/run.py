@@ -10,12 +10,12 @@ import torch
 import mousenet as mn
 
 video_num = 0  # <-- WHICH VIDEO YOU WANT TO VISUALIZE (0, 1, 2, etc.)
-SCALING = 0.8
+SCALING = 0.6
 
 logging.getLogger().setLevel(logging.DEBUG)  # Log all info
 
 dlc = mn.DLCProject(config_path='/home/pl/Retraining-BenR-2020-05-25/config.yaml')
-labeled_videos = mn.json_to_videos('/home/pl/Data', '../benv2-synced.json', mult=1)
+labeled_videos = mn.json_to_videos('/home/pl/Data', '../2020-06-03_ben-synced.json', mult=1)
 
 # Infer trajectories
 dlc.infer_trajectories(labeled_videos)
@@ -83,5 +83,5 @@ model_out = model(dataset[0][0].cuda()).cpu().detach().numpy()  # get model outp
 y, y_hat = dataset[0][1].cpu().detach().numpy(), model_out
 
 video = labeled_videos[video_num]
-video.calculate_mappings()
+video.get_windows_map()
 mn.VisualDebugger(video, y[video_num], y_hat[video_num], scaling=SCALING)

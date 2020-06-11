@@ -4,8 +4,8 @@ import os
 import pickle
 from tqdm import tqdm
 
-orig_label = json.load(open('benv2.json'))
-video_folder = 'D:\Peptide Logic\Writhing'
+orig_label = json.load(open('../2020-06-03_ben.json'))
+video_folder = r'E:\Peptide Logic\Writhing'
 
 for video in orig_label.keys():
     if video == 'Labeler': continue
@@ -18,7 +18,9 @@ for video in orig_label.keys():
             frame2read[frame] = frame2read[frame - 1]
 
     for behavior in orig_label[video].keys():
+        print(orig_label[video][behavior]['Label Start'])
         orig_label[video][behavior]['Label Start'] = frame2read[int(orig_label[video][behavior]['Label Start'])]
+        print(orig_label[video][behavior]['Label Start'])
         orig_label[video][behavior]['Label End'] = frame2read[int(orig_label[video][behavior]['Label End'])]
         for i, event_range in enumerate(tqdm(orig_label[video][behavior]['event_ranges'])):
             start, stop = event_range

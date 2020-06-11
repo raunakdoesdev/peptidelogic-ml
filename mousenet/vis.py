@@ -9,114 +9,124 @@ import mousenet as mn
 import pandas as pd
 import logging
 
-if __name__ == '__main__':
-    layout = [[sg.Text('My one-shot window.')],
-              [sg.InputText()],
-              [sg.Submit(), sg.Cancel()]]
-
-    window = sg.Window('Window Title', layout)
-
-    event, values = window.read()
-    window.close()
-
-    text_input = values[0]
-    sg.popup('You entered', text_input)
+sg.theme('LightGrey1')  # Define GUI Theme
 
 
-class AlignmentChecker:
-
-    def __init__(self, video: mn.LabeledVideo):
-        sg.theme('LightGrey1')  # Define GUI Theme
-        import json
-        self.time2frame = json.load(open('time2frame.json', 'r'))
-
-        # Define frame parameters
-        self.video = video
-        self.df = pd.read_hdf(video.df_path)
-        self.df = self.df[self.df.columns.get_level_values(0).unique()[0]]
-        self.cap = cv2.VideoCapture(video.path, cv2.CAP_FFMPEG)
-        self.num_frames = int(self.video.get_num_frames())
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
-        self.start_frame = 5
-        self.end_frame = self.num_frames
-        self.frame_num = self.start_frame
-        self.cur_frame = 0
+class VideoBrowser:
+    def __init__(self, videos, scaling=0.6):
+        self.scaling = scaling
+        self.videos = videos
+        self.video_paths = [video.path for video in videos]
+        self.video = videos[0]
+        self.frame_num = self.video.start
         self.play = False
+        self.video_window = [[sg.Combo(values=self.video_paths, default_value=self.video.path, readonly=True,
+                                       key='Switch Vids', size=(int(105 * self.scaling), int(10 * self.scaling)),
+                                       enable_events=True)],
+                             [sg.Image(key='video')]]
+        self.controls_window = [[sg.Slider(range=(self.video.start, self.video.end), default_value=self.video.start,
+                                           size=(int(70 * self.scaling), int(10 * self.scaling)),
+                                           orientation='h', key='Frame Slider', enable_events=True,
+                                           disable_number_display=True),
+                                 sg.Spin([str(i) for i in range(self.video.start, self.video.end)],
+                                         size=(int(9 * self.scaling), int(10 * self.scaling)), key='Frame Picker',
+                                         initial_value=str(self.video.start)),
+                                 sg.Button('GO', size=(int(5 * self.scaling), 1)),
+                                 sg.Combo(values=[-10, -5, -3, -1, 1, 3, 5, 10], default_value=1, key='Speed',
+                                          readonly=True)]]
 
-        layout = [[sg.Image(key='video')],
-                  [sg.Slider(range=(self.start_frame, self.end_frame), default_value=self.start_frame,
-                             size=(55, 10),
-                             orientation='h', key='Frame Slider', enable_events=True, disable_number_display=True),
-                   sg.Spin([str(i) for i in range(self.start_frame, self.end_frame)], size=(9, 10),
-                           key='Frame Picker',
-                           initial_value=str(self.start_frame)),
-                   sg.Button('GO', size=(5, 1)),
-                   sg.Combo(values=[-10, -5, -3, -1, 1, 3, 5, 10], default_value=1, key='Speed', readonly=True)],
-                  [sg.Slider(range=(90800, 100000), default_value=1, size=(55, 10), orientation='h', key='Offset',
-                             enable_events=True)]]
+    def get_windows(self):
+        return self.video_window, self.controls_window
 
-        self.window = sg.Window('Alignment Checker', layout, return_keyboard_events=True)
+    def update_frame(self, window):
+        try:
+            frame = self.video.grab_frame_with_bparts(self.frame_num)
+            frame = cv2.resize(frame, (int(frame.shape[1] * self.scaling), int(frame.shape[0] * self.scaling)),
+                               interpolation=cv2.INTER_AREA)
+            imgbytes = cv2.imencode('.png', frame)[1].tobytes()
+            window['video'].update(data=imgbytes)
+        except Exception as e:
+            logging.exception(e)
 
-        self.first = True
-        self.window.read(timeout=0)
-        while self._event_loop(): pass
-        self.window.close()
+    def update(self, window, values, event):
+        change = self.update_controls(window, values, event)
+        if change:
+            self.update_frame(window)
+        return change
 
-    def _event_loop(self):
-        event, values = self.window.read(timeout=0)
-        if event in (None, 'Exit'):
-            return False
-
-        if self.first or self._update_state(event, values):  # if something changed
-            self._update_video(values)
-            self.first = False
-        return True
-
-    def _update_state(self, event, values):
+    def update_controls(self, window, values, event):
         frame_num = self.frame_num
         if event == 'p':
             self.play = not self.play
         if event == 'Frame Slider':
             frame_num = int(values['Frame Slider'])
-            self.window['Frame Picker'].update(str(frame_num))
+            window['Frame Picker'].update(str(frame_num))
         elif event == 'GO':
             frame_num = int(values['Frame Picker'])
-            self.window['Frame Slider'].update(frame_num)
+            window['Frame Slider'].update(frame_num)
         elif self.play or event == 'd':
-            self.window['Frame Slider'].update(frame_num)
-            self.window['Frame Picker'].update(str(frame_num))
             frame_num += float(values['Speed'])
+            window['Frame Slider'].update(frame_num)
+            window['Frame Picker'].update(str(frame_num))
         elif self.play or event == 'a':
-            self.window['Frame Slider'].update(frame_num)
-            self.window['Frame Picker'].update(str(frame_num))
             frame_num -= float(values['Speed'])
+            window['Frame Picker'].update(str(frame_num))
+            window['Frame Slider'].update(frame_num)
         elif event == 'r':
-            self.window['Speed'].update(-float(values['Speed']))
-        elif event == 'Offset':
+            window['Speed'].update(-float(values['Speed']))
+        elif event == 'Switch Vids':
+            print("HELLO")
+            self.video = self.videos[self.video_paths.index(values['Switch Vids'])]
+            self.frame_num = self.video.start
+            window['Frame Slider'].update(self.video.start, range=(self.video.start, self.video.end))
+            window['Frame Picker'].update(self.frame_num)
+        else:
+            return False
+
+        if self.video.start <= frame_num <= self.video.end:
+            self.frame_num = frame_num
             return True
         else:
             return False
 
-        if self.start_frame < frame_num < self.end_frame:
-            self.frame_num = frame_num
 
-        return True
+class ErrorBrowser:
+    def __init__(self, error_list, scaling=1.0):
+        self.browser = [[sg.Listbox(values=[], size=(None, 15))]]
+        pass
 
-    def _update_video(self, values):
-        keys = (('leftear', (0, 255, 0)), ('rightear', (0, 255, 0)), ('tail', (0, 0, 255)))
-        try:
-            print(self.fps)
-            # self.cap.set(cv2.CAP_PROP_POS_FRAMES, int((self.frame_num * self.fps/30) - 1))
-            self.cap.set(cv2.CAP_PROP_POS_MSEC, self.time2frame[str(int(self.frame_num))])
-            _, frame = self.cap.read()
-            for key, color in keys:
-                if self.df[key]['likelihood'][self.frame_num] > 0.9:
-                    x, y = self.df[key]['x'][self.frame_num], self.df[key]['y'][self.frame_num]
-                    cv2.circle(frame, (int(x), int(y)), 3, color, 6)
-            imgbytes = cv2.imencode('.png', frame)[1].tobytes()
-            self.window['video'].update(data=imgbytes)
-        except Exception as e:
-            logging.exception(e)
+    def get_windows(self):
+        return self.browser
+
+    def update(self, window, values, event):
+        pass
+        # change = self.update_controls(window, values, event)
+        # if change:
+        #     self.update_frame(window)
+        # return change
+
+
+if __name__ == '__main__':
+    os.environ['DISPLAY'] = ':1'
+    dlc = mn.DLCProject(config_path='/home/pl/Retraining-BenR-2020-05-25/config.yaml')
+    vids = mn.folder_to_videos('/home/pl/Data/mWT SR 017 (PL 100960 DRC IV)_renamed', labeled=True,
+                               required_words=('CFS',))
+    dlc.infer_trajectories(vids, infer=False)
+    vb = VideoBrowser(vids)
+    eb = ErrorBrowser(error_list=None)
+    w1, w2 = vb.get_windows()
+    w3 = eb.get_windows()
+    layout = [[sg.Column([[sg.Column(w1)], [sg.Column(w2)]]), sg.Column(w3)]]
+    window = sg.Window('Visual Debugger', layout, return_keyboard_events=True)
+    window.read(timeout=0)
+    vb.update_frame(window)
+    while True:
+        event, values = window.read(timeout=0)
+        if event in (None, 'Exit'):
+            break
+        vb.update(window, values, event)
+        eb.update(window, values, event)
+    window.close()
 
 
 class VisualDebugger:
@@ -227,8 +237,11 @@ class VisualDebugger:
                 ('tail', (0, 255, 0)),)
 
         try:
-            self.cap.set(cv2.CAP_PROP_POS_FRAMES, self.frame_num)
-            # self.cap.set(cv2.CAP_PROP_POS_MSEC, self.video.read2time[int(self.frame_num)])
+            if 'CFS' in self.video.path:
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, int(self.frame_num))
+            else:
+                self.cap.set(cv2.CAP_PROP_POS_MSEC, self.video.win_map[int(self.frame_num)])
+
             _, frame = self.cap.read()
             for key, color in keys:
                 if self.df[key]['likelihood'][self.frame_num] > 0.9:

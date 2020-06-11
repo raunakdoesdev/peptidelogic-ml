@@ -1,11 +1,17 @@
+import pathlib
+import sys
+
+sys.path.append(str(pathlib.Path(__file__).parent.absolute().parent.absolute()))
 import PySimpleGUI as sg
 import os
 import cv2
 import json
 import numpy as np
 from tqdm import tqdm
+import mousenet as mn
 import pickle
 
+import logging
 
 def launcher():
     layout = [
@@ -43,23 +49,14 @@ def labeled(frame_num):
     return False
 
 
-def video_labeler(videos):
-    cap = cv2.VideoCapture(videos[0])
-    num_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+def video_labeler(video_paths):
+    videos = [mn.LabeledVideo(video) for video in video_paths]
+    dlc = mn.DLCProject(config_path='/home/pl/Retraining-BenR-2020-05-25/config.yaml')
+    dlc.infer_trajectories(videos)
+
+    video = videos[0]
 
     video_dic = {}
-    read2time = {}
-
-    map_path = videos[0].replace('mp4', 'map')
-    num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    if os.path.exists(map_path):
-        _, read2time = pickle.load(open(map_path, 'rb'))
-    else:
-        for read in tqdm(range(num_frames), desc='Read to Time Mapping'):
-            _, image = cap.read()
-            read2time[read] = cap.get(cv2.CAP_PROP_POS_MSEC)
-            sg.OneLineProgressMeter("Processing Video", read + 1, num_frames, key='progress')
-        pickle.dump(read2time, open(map_path, 'wb'))
 
     label_dash = [[sg.Text('Event Class: '),
                    sg.Combo(['Itch', 'Writhe', 'WallStand', 'NoMove'], size=(10, 1), default_value="Itch",
@@ -74,12 +71,12 @@ def video_labeler(videos):
                            "L - Start/End Label")]]
 
     video_dash = [[sg.Text('Video Selector:'),
-                   sg.Combo(videos, default_value=videos[0], readonly=True, size=(105, 3), enable_events=True,
+                   sg.Combo(video_paths, default_value=video_paths[0], readonly=True, size=(105, 3), enable_events=True,
                             key='Video Selector')],
                   [sg.Image(filename='', key='image')],
-                  [sg.Slider(range=(0, num_frames - 2), size=(65, 10), orientation='h', key='Frame Slider',
+                  [sg.Slider(range=(0, video.get_num_frames()), size=(65, 10), orientation='h', key='Frame Slider',
                              enable_events=True, disable_number_display=True),
-                   sg.Spin([str(i) for i in range(int(num_frames) - 2)], size=(9, 10), key='Frame Picker'),
+                   sg.Spin([str(i) for i in range(video.get_num_frames())], size=(9, 10), key='Frame Picker'),
                    sg.Button('GO', size=(4, 1))],
                   [sg.Button('Play', key='PlayPause', size=(8, 1)), sg.Text('Play Speed:'),
                    sg.Combo([-5, -3, -2, -1.5, -1.25, -1, -0.5, -0.25, 0.25, 0.5, 1, 1.25, 1.5, 2, 3, 5],
@@ -89,6 +86,7 @@ def video_labeler(videos):
                    sg.Button('Label End')],
                   [sg.Text('Label Start: ? Label End: ?', key='StartEnd', size=(50, 1))]
                   ]
+
     window = sg.Window('MultiClass Video Labeler',
                        [[sg.TabGroup([[sg.Tab('Setup Page', label_dash), sg.Tab('Labeler Page', video_dash)]])]],
                        return_keyboard_events=True, use_default_focus=True)
@@ -115,23 +113,10 @@ def video_labeler(videos):
             print(video_dic)
 
         if event == 'Video Selector':
-            cap = cv2.VideoCapture(values['Video Selector'])
-
-            read2time = {}
-            map_path = values['Video Selector'].replace('mp4', 'rmap')
-            num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            if os.path.exists(map_path):
-                read2time = pickle.load(open(map_path, 'rb'))
-            else:
-                for read in tqdm(range(num_frames), desc='Read to Time Mapping'):
-                    _, image = cap.read()
-                    read2time[read] = cap.get(cv2.CAP_PROP_POS_MSEC)
-                    sg.OneLineProgressMeter("Processing Video", read + 1, num_frames, key='progress')
-                pickle.dump(read2time, open(map_path, 'wb'))
-
-            video_name = os.path.basename(values['Video Selector'])
-            window['Frame Slider'].update(0, range=(0, num_frames - 2))
-            window['Frame Picker'].update('0', values=[str(i) for i in range(int(num_frames) - 2)])
+            video = videos[video_paths.index(values['Video Selector'])]
+            video_name = video.get_name()
+            window['Frame Slider'].update(0, range=(0, video.get_num_frames()))
+            window['Frame Picker'].update('0', values=[str(i) for i in range(video.get_num_frames())])
             frame_num = 0
 
             video_dic[video_name] = video_dic.get(video_name, {})
@@ -143,8 +128,8 @@ def video_labeler(videos):
         if event == 'Frame Slider':
             try:
                 temp_frame_num = int(values['Frame Slider'])
-                if not 0 <= temp_frame_num < num_frames - 1:
-                    raise Exception(f'Frame Num {temp_frame_num} is out of the bounds 0 - {num_frames - 2}')
+                if not 0 <= temp_frame_num < video.get_num_frames():
+                    raise Exception(f'Frame Num {temp_frame_num} is out of the bounds 0 - {video.get_num_frames()}')
                 frame_num = temp_frame_num
                 window['Frame Picker'].update(frame_num)
             except Exception as e:
@@ -152,8 +137,8 @@ def video_labeler(videos):
         if event == 'GO':
             try:
                 temp_frame_num = int(values['Frame Picker'])
-                if not 0 <= temp_frame_num < num_frames - 1:
-                    raise Exception(f'Frame Num {temp_frame_num} is out of the bounds 0 - {num_frames - 2}')
+                if not 0 <= temp_frame_num < video.get_num_frames() - 1:
+                    raise Exception(f'Frame Num {temp_frame_num} is out of the bounds 0 - {video.get_num_frames()}')
                 frame_num = temp_frame_num
                 window['Frame Slider'].update(frame_num)
             except Exception as e:
@@ -168,7 +153,7 @@ def video_labeler(videos):
                 temp_frame_num = frame_num - float(values['Play Speed'])
             else:
                 temp_frame_num = frame_num + float(values['Play Speed'])
-            if 0 <= temp_frame_num < num_frames:
+            if 0 <= temp_frame_num < video.get_num_frames():
                 frame_num = temp_frame_num
             else:
                 play = False
@@ -201,8 +186,8 @@ def video_labeler(videos):
         if frame_num != last_frame_num or event != '__TIMEOUT__':
             try:
                 last_frame_num = frame_num
-                cap.set(cv2.CAP_PROP_POS_MSEC, read2time[int(frame_num)])
-                res, frame = cap.read()
+
+                frame = video.grab_frame_with_bparts(frame_num)
 
                 if (event_start is not None and frame_num >= event_start) or event_in_range(frame_num, video_dic,
                                                                                             values['Video Selector'],
@@ -221,6 +206,7 @@ def video_labeler(videos):
                 video_name = os.path.basename(values['Video Selector'])
 
             except Exception as e:
+                logging.exception(e)
                 sg.popup_error(f'Error Loading Frame:\n{e}\nPlease Manually Set Valid Frame # and Try Again')
 
     window.close()

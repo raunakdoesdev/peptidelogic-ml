@@ -49,7 +49,7 @@ def train_writhing_network(force=False):
 
     dlc = mn.DLCProject(config_path='/home/pl/Retraining-BenR-2020-05-25/config.yaml')
     hparams = writhing_hparams
-    labeled_videos = mn.json_to_videos('/home/pl/Data', '../benv2-synced.json', mult=1)
+    labeled_videos = mn.json_to_videos('/home/pl/Data', '../2020-06-03_ben-synced.json', mult=1)
     dlc.infer_trajectories(labeled_videos)
     dataset = mn.DLCDataset(labeled_videos, df_map, behavior='Writhe')
     runner = mn.Runner(MouseModel, hparams, dataset)
@@ -61,7 +61,7 @@ def train_writhing_network(force=False):
         results = []
         trials = np.array(list(range(1, 10))) / 10.0
         print(trials)
-        for percent_data in trials:
+        for percent_data in [None]:
             hparams['percent_data'] = percent_data
             runner = mn.Runner(MouseModel, hparams, dataset)
             runner.train_model(max_epochs=500)

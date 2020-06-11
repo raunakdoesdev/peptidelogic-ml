@@ -98,7 +98,7 @@ class ItchDetector(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
-        weight = self.hparams.weight * (y == 1) + (y == 0).float()
+        weight = (self.hparams.weight * (y == 1) + (y == 0)).float() # (y_hat.clamp(0.1, 1).detach() ** 20) * (y == 0) + (y == 1)
         return {'loss': F.binary_cross_entropy(y_hat, y, weight=weight)}
 
     def train_dataloader(self):
@@ -138,7 +138,7 @@ class ItchDetector(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
-        weight = (self.hparams.weight * (y == 1) + (y == 0)).float()
+        weight = y_hat.clamp(0.25, 1).detach()  # (self.hparams.weight * (y == 1) + (y == 0)).float()
 
         y_true = y.contiguous().view(-1).cpu()
         y_pred = y_hat.contiguous().view(-1).cpu()
