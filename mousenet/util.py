@@ -1,7 +1,9 @@
+from enum import Enum
 from itertools import islice
 import logging
 import torch
 import numpy as np
+from sklearn import metrics
 
 
 def in_range(event_ranges, frame_num, map=None):
@@ -78,3 +80,23 @@ class AverageLogger:
     def print(self):
         for key in self.dic.keys():
             print(f'{key} -> {np.mean(self.dic[key])}')
+
+
+class ClassificationTypes(Enum):
+    TRUE_NEGATIVE = 0
+    TRUE_POSITIVE = 1
+    FALSE_NEGATIVE = 2
+    FALSE_POSITIVE = 3
+
+
+def get_class_tensor(y_pred_thresh, y):
+    class_tensor = ((y_pred_thresh == 0) * (y == 0)) * ClassificationTypes.TRUE_NEGATIVE.value + \
+                   ((y_pred_thresh == 1) * (y == 1)) * ClassificationTypes.TRUE_POSITIVE.value + \
+                   ((y_pred_thresh == 0) * (y == 1)) * ClassificationTypes.FALSE_NEGATIVE.value + \
+                   ((y_pred_thresh == 1) * (y == 0)) * ClassificationTypes.FALSE_POSITIVE.value
+    return class_tensor
+
+
+def prauc_feval(pred, dtrain):
+    lab = dtrain.get_label()
+    return 'PRAUC', metrics.average_precision_score(lab, pred)

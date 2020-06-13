@@ -12,30 +12,35 @@ from mousenet import util
 import matplotlib.pyplot as plt
 
 
+def video_to_dataset(video, window_size):
+    df = pd.read_hdf(video.df_path)
+    df = df[df.columns.get_level_values(0).unique()[0]]
+    df = df.iloc[int(video.start): int(video.end)]
+
+    cols = []
+    for col in df.columns:
+        if 'likelihood' in col[1]:
+            cols.append(col)
+    df = df[cols]
+
+    # Sliding Window
+    new_df = df.copy(deep=True)
+    for i in range(-window_size // 2, 1 + window_size // 2):
+        for col in df.columns:
+            new_df[col[0], col[1] + str(i)] = df[col].shift(i)
+    new_df.fillna(value=0, inplace=True)
+
+    return new_df
+
+
 def get_sklearn_dataset(labeled_videos, window_size, train_size=None, test_size=None):
     dfs = []
     ys = []
     for video in labeled_videos:
         if 'Writhe' not in video.ground_truth:
             continue
-        df = pd.read_hdf(video.df_path)
-        df = df[df.columns.get_level_values(0).unique()[0]]
-        df = df.iloc[int(video.start): int(video.end)]
 
-        cols = []
-        for col in df.columns:
-            if 'likelihood' in col[1]:
-                cols.append(col)
-        df = df[cols]
-
-        # Sliding Window
-        new_df = df.copy(deep=True)
-        for i in range(-window_size // 2, 1 + window_size // 2):
-            for col in df.columns:
-                new_df[col[0], col[1] + str(i)] = df[col].shift(i)
-        new_df.fillna(value=0, inplace=True)
-        dfs.append(new_df)
-
+        dfs.append(video_to_dataset(video, window_size))
         y = torch.load(video.ground_truth['Writhe']).numpy()
         ys.append(y)
 
@@ -52,14 +57,13 @@ def get_sklearn_dataset(labeled_videos, window_size, train_size=None, test_size=
         train, test = train_test_split(y, train_size=train_size, test_size=test_size, shuffle=False)
         y_trains.append(train)
         y_tests.append(test)
-    X = pd.concat(dfs, ignore_index=True)
-    y = np.concatenate(ys)
+
     X_train = pd.concat(X_trains, ignore_index=True)
     X_test = pd.concat(X_tests, ignore_index=True)
     y_train = np.concatenate(y_trains)
     y_test = np.concatenate(y_tests)
 
-    return X_train, X_test, y_train, y_test, X, y
+    return X_train, X_test, y_train, y_test, dfs, ys
 
 
 class DLCDataset(Dataset):

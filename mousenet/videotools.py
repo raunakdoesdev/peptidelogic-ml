@@ -2,6 +2,10 @@ import glob
 import json
 import logging
 import os
+
+import matplotlib
+from matplotlib import colors
+from matplotlib import pyplot
 from tqdm import tqdm
 import torch
 
@@ -11,6 +15,8 @@ import pickle
 import subprocess
 import copy
 import pandas as pd
+import random
+
 
 class Video:
     def __init__(self, path):
@@ -39,7 +45,8 @@ class LabeledVideo(Video):
         self.win_map = None
         self.cap = None
         self.df = None
-        self.color_map = {}
+        self.color_cycle = [tuple(int(round(v * 255)) for v in matplotlib.colors.to_rgb(c)) for c in
+                            matplotlib.pyplot.rcParams['axes.prop_cycle'].by_key()['color']]
 
     def grab_frame(self, frame_num):
         if self.cap is None:
@@ -60,13 +67,15 @@ class LabeledVideo(Video):
             self.df = pd.read_hdf(self.df_path)
             self.df = self.df[self.df.columns.get_level_values(0).unique()[0]]
 
-        for key in self.df.columns.get_level_values(0):
-            import random
-            # self.color_map[key] = self.color_map.get(key, (random.randint(0, 255), random.randint(0, 255),
-            #                                                random.randint(0, 255)))
+        for i, key in enumerate(set(self.df.columns.get_level_values(0))):
             if self.df[key]['likelihood'][frame_num] > thresh:
                 x, y = self.df[key]['x'][frame_num], self.df[key]['y'][frame_num]
-                cv2.circle(frame, (int(x), int(y)), 3, (255, 0, 0), 6)
+                cv2.circle(frame, (int(x), int(y)), 3, self.color_cycle[i], 6)
+            scale = 0.75
+            cv2.circle(frame, (10, int(scale * 60 + i * scale * 30)), int(scale * 6), self.color_cycle[i], 6)
+            cv2.putText(frame, key, (int(10 + 12 * scale), int(scale * 66 + i * scale * 30)), cv2.FONT_HERSHEY_SIMPLEX,
+                        scale, self.color_cycle[i], 2)
+
         return frame
 
     def set_ground_truth(self, label_path, behavior):
