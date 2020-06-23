@@ -1,87 +1,230 @@
-import pathlib
+import pickle
+import os
+from matplotlib.backends.backend_pdf import PdfPages
+
 import sys
 
-sys.path.append(str(pathlib.Path(__file__).parent.absolute().parent.absolute()))
+sys.path.insert(0, "../")
 
-import logging
-
-import torch
-
-import mousenet as mn
-
-video_num = 0  # <-- WHICH VIDEO YOU WANT TO VISUALIZE (0, 1, 2, etc.)
-SCALING = 0.6
-
-logging.getLogger().setLevel(logging.DEBUG)  # Log all info
-
-dlc = mn.DLCProject(config_path='/home/pl/Retraining-BenR-2020-05-25/config.yaml')
-labeled_videos = mn.json_to_videos('/home/pl/Data', '../2020-06-03_ben-synced.json', mult=1)
-
-# Infer trajectories
-dlc.infer_trajectories(labeled_videos)
-print(labeled_videos[0].df_path)
-print(labeled_videos[1].df_path)
-
-# Define hyperparameters
-writhing_hparams = {'num_filters': (19, (1, 20)),
-                    'num_filters2': (8, (1, 20)),
-                    'filter_width': (101, (11, 101, 10)),  # must be an odd number
-                    'filter_width2': (31, (11, 101, 10)),  # must be an odd number
-                    'in_channels': 8,  # number of network inputs
-                    'weight': 7,  # how much "emphasis" to give to positive labels
-                    'loss': torch.nn.functional.binary_cross_entropy,
-                    'percent_data': None}
-
-itching_hparams = {'num_filters': (15, (1, 20)),
-                   'num_filters2': (7, (1, 20)),
-                   'filter_width': (21, (11, 101, 10)),  # must be an odd number
-                   'filter_width2': (61, (11, 101, 10)),  # must be an odd number
-                   'in_channels': 8,  # number of network inputs
-                   'weight': 7,  # how much "emphasis" to give to positive labels
-                   'loss': torch.nn.functional.binary_cross_entropy,
-                   'train_val_split': 1.0}
-
-behvaior = 'Writhe'
-hparams = writhing_hparams if behvaior == 'Writhe' else itching_hparams
+import time
+import numpy as np
+import pandas as pd
+import plotter
+import json
+from param import Param
+from tqdm import tqdm
 
 
-# Define Network Input
-def df_map(df):
-    # x = [mn.dist(df, 'leftpaw', 'tail'), mn.dist(df, 'rightpaw', 'tail'), mn.dist(df, 'neck', 'tail'), body_length,
-    #      df['leftpaw']['likelihood'], df['rightpaw']['likelihood']]
-    print(df.head(2))
-    x = [df['hindpaw_right']['likelihood'], df['hindpaw_left']['likelihood'], df['hindheel_right']['likelihood'],
-         df['hindheel_left']['likelihood'], df['frontpaw_left']['likelihood'], df['frontpaw_right']['likelihood'],
-         mn.dist(df, 'tail', 'hindpaw_right'), mn.dist(df, 'tail', 'hindpaw_left')]
-    return x
+def main():
+    dfp = Param()  # default param
+
+    if dfp.label_dlc_on:
+        # input: frames to label
+        # output:
+        # 	- dlc project
+        # 	- labelled frames files
+        # todo
+
+        # actually this might not need the input to frames to label, because its just calling that one gui
+        # it might be good to print location of the folder
+
+        pass
+
+    if dfp.retrain_dlc_on:
+        # input: path to labelled frames files
+        # output: trained model (written to file)
+        # todo
+        pass
+
+    if dfp.label_clf_on:
+        # input: path to video file (needs to be constant frame rate!!)
+        # output: labelled behavior frames (written to file)
+        # todo
+
+        # actually this might not need the input path to video file, because its just calling that one gui
+
+        # maybe print this, or, put it in gui
+        if not 'CFR' in dfp.path_to_clf_label_video:
+            print('CLASSIFIER LABELING VIDEO NEEDS TO BE CONSTANT FRAME RATE!!')
+            exit()
+
+        pass
+
+    if dfp.retrain_clf_on:
+        # input: path to labelled behavior frames file
+        # output: trained model (written to file)
+        # todo
+        pass
+
+    if dfp.evaluate_vid_on:
+        # input: lst of paths to video file (does not have to be constant frame rate)
+        # output: times, prediction value (written to file)
+
+        # TODO...
+        # 	- implement force commands
+        # 	- make results a 2d array
+        # 	- debug... why doesnt running a 'blind' mouse work? i.e.
+        # 	- (?) downsample 'result' from 30fps to 5fps
+
+        import mousenet as mn
+        clf = pickle.load(open(dfp.path_to_clf_model, 'rb'))
+
+        # eval videos into dict:
+        # 	- key: video name
+        #	- value: result value is np array in [nframes x 2]
+        result_by_video = dict()
+        for video_path in tqdm(dfp.path_to_eval_videos):
+            result = mn.evaluate_video(video_path, clf, dfp.path_to_dlc_project, dfp.clf_force, dfp.dlc_force)
+            result_by_video[video_path] = result
+
+        # write results to binary files
+        for video_path, result in result_by_video.items():
+            video_id = os.path.basename(video_path).split('.mp4')[0]
+            result_fn = '{}{}.npy'.format(dfp.path_to_results, video_id)
+            np.save(result_fn, result)
+
+    if dfp.visualize_results_on:
+        # input: should only use binary files and path to key files (dosage dictionaries, etc)
+        # output:
+        # 	- compare human/machine label
+        # 	- precisionrecall vs training set size
+        # 	- dose response curve
+        # 	- feature ranking
+        # 	- temporal feature ranking
+        # 	- visual debugger (should be changed to accept binary file)
+        # 	- <...>
+
+        if dfp.compare_human_machine_instance:
+
+            bkey_to_video = get_blind_key_to_video(dfp.path_to_bkey_to_video)
+
+            # load machine results
+            machine_results = dict()
+            ax_ylim = [0, 0]
+            for binary_fn in dfp.path_to_vis_files:
+                video_id = os.path.basename(binary_fn).split('.npy')[0]
+                result = np.load(binary_fn)
+                machine_results[video_id] = result
+                if np.sum(result) > ax_ylim[1]:
+                    ax_ylim[1] = sum(np.load(binary_fn))
+
+            # load human results
+            human_results = dict()
+            ax2_ylim = [0, 0]
+            bsr_xls = pd.ExcelFile(dfp.path_to_blind_summary_report)
+            for sheet_name in bsr_xls.sheet_names:
+                bsr_pd = pd.read_excel(bsr_xls, sheet_name)
+                bsr_np = bsr_pd.to_numpy()
+                times = bsr_pd.columns.to_numpy()[1:-1]
+
+                for row in bsr_np:
+                    bkey = str(row[0])
+                    video_id = bkey_to_video[bkey]
+                    events = row[1:-1]
+
+                    result = np.zeros((times.shape[0], 2))
+                    result[:, 0] = times
+                    result[:, 1] = events
+
+                    if video_id in human_results.keys():
+                        human_results[video_id].append(result)
+                    else:
+                        human_results[video_id] = [result]
+
+                    if np.sum(result[:, 1]) > ax2_ylim[1]:
+                        ax2_ylim[1] = np.sum(result[:, 1])
+
+            # plot
+            colors = plotter.get_colors(machine_results)
+            for video_id, machine_result in machine_results.items():
+                if video_id in human_results.keys():
+                    fig, ax = plotter.make_fig()
+                    ax.set_title(video_id)
+                    plotter.plot_instance_over_time_machine(machine_result, fig, ax, colors[video_id], ax_ylim)
+                    plotter.plot_instance_over_time_human(human_results[video_id], fig, ax, colors[video_id], ax2_ylim)
+
+        if dfp.compare_human_machine_drc:
+
+            video_to_dose = get_video_to_dose(dfp)
+            bkey_to_video = get_blind_key_to_video(dfp.path_to_bkey_to_video)
+
+            # load machine results
+            machine_results = dict()
+            for binary_fn in dfp.path_to_vis_files:
+                video_id = os.path.basename(binary_fn).split('.npy')[0]
+                result = np.load(binary_fn)
+                dose = video_to_dose[video_id]
+
+                if dose in machine_results.keys():
+                    machine_results[dose].append(result)
+                else:
+                    machine_results[dose] = [result]
+
+            # load human results
+            human_results = dict()
+            bsr_xls = pd.ExcelFile(dfp.path_to_blind_summary_report)
+            for sheet_name in bsr_xls.sheet_names:
+                bsr_pd = pd.read_excel(bsr_xls, sheet_name)
+                bsr_np = bsr_pd.to_numpy()
+                times = bsr_pd.columns.to_numpy()[1:-1]
+
+                for row in bsr_np:
+                    bkey = str(row[0])
+                    video_id = bkey_to_video[bkey]
+
+                    # to only use data in 'path_to_vis_files'
+                    if True:  # video_id in machine_results.keys():
+
+                        events = row[1:-1]
+                        dose = video_to_dose[video_id]
+
+                        result = np.zeros((times.shape[0], 2))
+                        result[:, 0] = times
+                        result[:, 1] = events
+
+                        if dose in human_results.keys():
+                            human_results[dose].append(result)
+                        else:
+                            human_results[dose] = [result]
+
+                        #
+            colors = plotter.get_colors(machine_results)
+            fig, ax = plotter.make_fig()
+            ax.set_title('Dose Response Curve')
+            plotter.plot_drc_machine(machine_results, fig, ax, colors)
+            plotter.plot_drc_human(human_results, fig, ax, colors)
+
+        plotter.save_figs(dfp.plot_fn)
+        plotter.open_figs(dfp.plot_fn)
 
 
-# Define Network Architecture
-class MouseModel(torch.nn.Module):
-    def __init__(self, params):
-        super().__init__()
-        self.conv1 = torch.nn.Conv1d(params.in_channels, params.num_filters, kernel_size=params.filter_width,
-                                     padding=(params.filter_width - 1) // 2)
-        self.conv2 = torch.nn.Conv1d(params.num_filters, params.num_filters2, kernel_size=params.filter_width2,
-                                     padding=(params.filter_width2 - 1) // 2)
+def get_video_to_dose(param):
+    # video to dose
+    video_to_dose = dict()
+    video_to_dose_pd = pd.read_excel(param.path_to_video_to_dose)
+    for row in range(video_to_dose_pd.shape[0]):
 
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x, _ = torch.max(x, dim=1)
-        return torch.sigmoid(x)
+        temp = True
+        if temp:
+            blind_key_to_video = get_blind_key_to_video(param.path_to_bkey_to_video)
+            blind_key = video_to_dose_pd.iat[row, 0]
+            video_id = blind_key_to_video[str(blind_key)]
+
+        else:
+            video_id = video_to_dose_pd.iat[row, 0]
+
+        dose = video_to_dose_pd.iat[row, 1]
+        video_to_dose[video_id] = dose
+
+    return video_to_dose
 
 
-torch.manual_seed(1)  # consistent behavior w/ random seed
-dataset = mn.DLCDataset(labeled_videos, df_map, behavior='Writhe')
+def get_blind_key_to_video(path_to_bkey_to_video):
+    bkey_to_video = dict()
+    with open(path_to_bkey_to_video, 'r') as j:
+        bkey_to_video = json.loads(j.read())
+    return bkey_to_video
 
-runner = mn.Runner(MouseModel, hparams, dataset)
-model, auc = runner.train_model(max_epochs=500)
-print(auc)
 
-model_out = model(dataset[0][0].cuda()).cpu().detach().numpy()  # get model output
-y, y_hat = dataset[0][1].cpu().detach().numpy(), model_out
-
-video = labeled_videos[video_num]
-video.get_windows_map()
-mn.VisualDebugger(video, y[video_num], y_hat[video_num], scaling=SCALING)
+if __name__ == '__main__':
+    main()

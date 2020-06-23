@@ -100,3 +100,33 @@ def get_class_tensor(y_pred_thresh, y):
 def prauc_feval(pred, dtrain):
     lab = dtrain.get_label()
     return 'PRAUC', metrics.average_precision_score(lab, pred)
+
+
+# Data Frame Helpers
+class BodypartProcessor:
+    def __init__(self, df):
+        self.df = df
+
+    def area(self, a, b, c):
+        return (self.df[a]['x'] * (self.df[b]['y'] - self.df[c]['y']) +
+                self.df[b]['x'] * (self.df[c]['y'] - self.df[a]['y']) +
+                self.df[c]['x'] * (self.df[a]['y'] - self.df[b]['y'])).abs() / 2
+
+    def distance(self, bp1, bp2):
+        return ((self.df[bp1]['x'] - self.df[bp2]['x']) ** 2 + \
+               (self.df[bp1]['y'] - self.df[bp2]['y']) ** 2) ** (1/2)
+
+    def middle(self, a, b):
+        self.df[f'{a}-{b}-middle', 'x'] = (self.df[a]['x'] + self.df[b]['x']) / 2
+        self.df[f'{a}-{b}-middle', 'y'] = (self.df[a]['y'] + self.df[b]['y']) / 2
+        return f'{a}-{b}-middle'
+
+    def prune(self):
+        cols = []
+        for col in self.df.columns:
+            if 'likelihood' in col[1] or 'feature' in col[1]:
+                cols.append(col)
+        return self.df[cols]
+
+    def __setitem__(self, key, value):
+        self.df[key, 'feature'] = value

@@ -105,9 +105,9 @@ class LabeledVideo(Video):
             pickle.dump(self.win_map, open(mapping_path, 'wb'))
 
     def calculate_mappings(self, force=False):
-        if not 'CFS' in self.path and not os.path.exists(self.path.replace(".mp4", "-CFS.mp4")) or True:
+        if not 'CFS' in self.path and not os.path.exists(self.path.temporal_replace(".mp4", "-CFS.mp4")) or True:
             return subprocess.Popen(
-                f'ffmpeg -i "{self.path}" -r 30 -c:v libx264 -c:a copy -crf 0 "{self.path.replace(".mp4", "-CFS.mp4")}"',
+                f'ffmpeg -i "{self.path}" -r 30 -c:v libx264 -c:a copy -crf 0 "{self.path.temporal_replace(".mp4", "-CFS.mp4")}"',
                 shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         # mapping_path = self.path.replace('mp4', 'new_map')

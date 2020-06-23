@@ -57,12 +57,15 @@ class DLCProject:
 
         deeplabcut.auxiliaryfunctions.write_config(self.config_path, cfg)
 
-    def extract_frames(self, config_path, manual=False):
+    def add_videos(self, videos):
+        deeplabcut.add_new_videos(self.config_path, [video.path for video in videos])
+
+    def extract_frames(self, manual=False):
         if manual:
             deeplabcut.extract_frames(self.config_path, 'manual', userfeedback=False,
                                       slider_width=60)
         else:
-            deeplabcut.extract_frames(self.config_path)
+            deeplabcut.extract_frames(self.config_path, userfeedback=False)
 
     def create_training_set(self, num_shuffles=1):
         deeplabcut.create_training_dataset(self.config_path, num_shuffles=num_shuffles)
