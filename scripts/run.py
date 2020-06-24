@@ -2,6 +2,7 @@ import pickle
 import os
 from matplotlib.backends.backend_pdf import PdfPages
 
+os.environ['DISPLAY'] = ':1'
 import sys
 
 sys.path.insert(0, "../")
@@ -83,6 +84,25 @@ def main():
             result_fn = '{}{}.npy'.format(dfp.path_to_results, video_id)
             np.save(result_fn, result)
 
+    if dfp.evaluate_cluster_on:
+        from sklearn.cluster import DBSCAN
+        for binary_fn in tqdm(dfp.path_to_vis_files, desc="Computing Clusters"):
+            y_pred = np.load(binary_fn)
+            all_points = np.array([range(len(y_pred))]).swapaxes(0, 1)
+            dbscan = DBSCAN(eps=7, min_samples=2)
+            labels = dbscan.fit_predict(all_points, sample_weight=y_pred > 0.7)
+            result_x, result_y = [0], [0]
+            for i in range(1, len(labels)):
+                if labels[i] != labels[i - 1] and labels[i] != -1:
+                    result_x.append(i)
+                    result_y.append(labels[i] + 1)
+            result_x.append(len(labels) - 1)
+            result_y.append(result_y[-1])
+
+            result = np.array([result_x, result_y]).swapaxes(0, 1)
+            result_fn = binary_fn.replace('.npy', '.cluster.npy')
+            np.save(result_fn, result)
+
     if dfp.visualize_results_on:
         # input: should only use binary files and path to key files (dosage dictionaries, etc)
         # output:
@@ -134,6 +154,14 @@ def main():
                     if np.sum(result[:, 1]) > ax2_ylim[1]:
                         ax2_ylim[1] = np.sum(result[:, 1])
 
+            machine_cluster_results = dict()
+            for binary_fn in dfp.path_to_vis_files:
+                video_id = os.path.basename(binary_fn).split('.npy')[0]
+                result = np.load(binary_fn.replace('.npy', '.cluster.npy'))
+                machine_cluster_results[video_id] = result
+                if result[-1][1] > ax2_ylim[1]:
+                    ax2_ylim[1] = result[-1][1]
+
             # plot
             colors = plotter.get_colors(machine_results)
             for video_id, machine_result in machine_results.items():
@@ -141,6 +169,8 @@ def main():
                     fig, ax = plotter.make_fig()
                     ax.set_title(video_id)
                     plotter.plot_instance_over_time_machine(machine_result, fig, ax, colors[video_id], ax_ylim)
+                    plotter.plot_instance_over_time_machine_cluster(machine_cluster_results[video_id], fig, ax,
+                                                                    colors[video_id], ax2_ylim)
                     plotter.plot_instance_over_time_human(human_results[video_id], fig, ax, colors[video_id], ax2_ylim)
 
         if dfp.compare_human_machine_drc:
@@ -187,11 +217,23 @@ def main():
                         else:
                             human_results[dose] = [result]
 
-                        #
+            machine_cluster_results = dict()
+            for binary_fn in dfp.path_to_vis_files:
+                video_id = os.path.basename(binary_fn).split('.npy')[0]
+                result = np.load(binary_fn.replace('.npy', '.cluster.npy'))
+                dose = video_to_dose[video_id]
+
+                if dose in machine_cluster_results.keys():
+                    machine_cluster_results[dose].append(result)
+                else:
+                    machine_cluster_results[dose] = [result]
+
             colors = plotter.get_colors(machine_results)
             fig, ax = plotter.make_fig()
             ax.set_title('Dose Response Curve')
             plotter.plot_drc_machine(machine_results, fig, ax, colors)
+
+            plotter.plot_drc_machine_cluster(machine_cluster_results, fig, ax, colors)
             plotter.plot_drc_human(human_results, fig, ax, colors)
 
         plotter.save_figs(dfp.plot_fn)
