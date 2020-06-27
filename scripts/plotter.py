@@ -162,8 +162,8 @@ def plot_matchings(machine_results, human_results, matchings):
         matching = matchings[video_id]
 
         # convert
-        machine_result[:,0] = machine_result[:,0] #/ 60.0 # to minutes 
-        # machine_result[:,0] = machine_result[:,0] / 60 / 30 # to minutes 
+        # machine_result[:,0] = machine_result[:,0] #/ 60.0 # to minutes 
+        machine_result[:,0] = machine_result[:,0] / 60 / 30 # to minutes 
 
         fig,ax = plt.subplots()
         ax.set_title(video_id)
@@ -180,7 +180,9 @@ def plot_matchings(machine_results, human_results, matchings):
                 [machine_event_match,human_event_match],color='green',alpha=0.5)
 
         ax.plot(np.nan,np.nan,color='green',alpha=0.5,label='match')
+        ax.grid(True)
         ax.legend()
+
 
 
 

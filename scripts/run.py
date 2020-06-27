@@ -104,37 +104,36 @@ def main():
 
         from sklearn.cluster import DBSCAN
         for binary_fn in tqdm(path_to_vis_files, desc="Computing Clusters"):
-            # y_pred = np.load(binary_fn)
-            # all_points = np.array([range(len(y_pred))]).swapaxes(0, 1)
-            # dbscan = DBSCAN(eps=7, min_samples=2)
+            y_pred = np.load(binary_fn)[:,1]
+            all_points = np.array([range(len(y_pred))]).swapaxes(0, 1)
+            dbscan = DBSCAN(eps=7, min_samples=2)
+            labels = dbscan.fit_predict(all_points, sample_weight=y_pred > 0.7)
+            result_x, result_y = [0], [0]
+            for i in range(1, len(labels)):
+                if labels[i] != labels[i - 1] and labels[i] != -1:
+                    result_x.append(i)
+                    result_y.append(labels[i] + 1)
+            result_x.append(len(labels) - 1)
+            result_y.append(result_y[-1])
+
+            # result = np.load(binary_fn)
+            # y_pred = result[:,1]
+            # all_points = np.array([result[:,0]]).swapaxes(0, 1)
+
             # dbscan = DBSCAN(eps=1, min_samples=2)
             # labels = dbscan.fit_predict(all_points, sample_weight=y_pred > 0.7)
             # result_x, result_y = [0], [0]
             # for i in range(1, len(labels)):
             #     if labels[i] != labels[i - 1] and labels[i] != -1:
+            #         # result_x.append(all_points[i])
             #         result_x.append(i)
             #         result_y.append(labels[i] + 1)
+            # # result_x.append(all_points[-1])
             # result_x.append(len(labels) - 1)
             # result_y.append(result_y[-1])
 
-            result = np.load(binary_fn)
-            y_pred = result[:,1]
-            all_points = np.array([result[:,0]]).swapaxes(0, 1)
-
-            dbscan = DBSCAN(eps=1, min_samples=2)
-            labels = dbscan.fit_predict(all_points, sample_weight=y_pred > 0.7)
-            result_x, result_y = [0], [0]
-            for i in range(1, len(labels)):
-                if labels[i] != labels[i - 1] and labels[i] != -1:
-                    # result_x.append(all_points[i])
-                    result_x.append(i)
-                    result_y.append(labels[i] + 1)
-            # result_x.append(all_points[-1])
-            result_x.append(len(labels) - 1)
-            result_y.append(result_y[-1])
-
             result = np.array([result_x, result_y]).swapaxes(0, 1)
-            result = np.array(result,dtype=np.float32)
+            # result = np.array(result,dtype=np.float32)
             result_fn = binary_fn.replace('.npy', '.cluster.npy')
             np.save(result_fn, result)
 
@@ -401,7 +400,7 @@ def matching_stats(dfp,machine_results,human_results):
     matchings = dict()
 
     # accounts for human delay and machine clustering only start point 
-    tolerance_sec = 30
+    tolerance_sec = 10
     tolerance_min = tolerance_sec / 60
 
     for video_id in dfp.video_ids: 
@@ -414,14 +413,13 @@ def matching_stats(dfp,machine_results,human_results):
 
         # convert 
         machine_labelled = np.asarray(machine_labelled,dtype=np.float32)
-        # machine_labelled[:,0] = machine_labelled[:,0] / 60.0 # dim: [nevents x 2], units: [minutes x Z]
         machine_labelled[:,0] = machine_labelled[:,0] / 30.0 / 60.0 # dim: [nevents x 2], units: [minutes x Z]
 
         # make graph 
         dist = np.abs(human_labelled[:,0][:,np.newaxis] - machine_labelled[:,0])
 
         # two methods
-        method_1_on = True
+        method_1_on = False # something is wrong with method 1 
         if method_1_on:
 
             # solve linear program 
