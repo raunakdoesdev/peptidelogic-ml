@@ -35,14 +35,9 @@ def show():
 
 
 def plot_instance_over_time_machine(machine_result, fig, ax, color, ax_ylim):
-    # TEMP
-    temp = True
-    if temp:
-        events = machine_result  # (nframes,)
-        times = np.linspace(0, 30, machine_result.size)
-    else:
-        times = machine_result[:, 0]
-        events = machine_result[:, 1]
+
+    times = machine_result[:, 0]
+    events = machine_result[:, 1]
 
     cum_events = np.cumsum(events)
 
@@ -90,21 +85,10 @@ def plot_instance_over_time_human(human_result, fig, ax, color, ax_ylim):
 
 def plot_drc_machine(machine_results, fig, ax, colors):
     for dose, machine_result in machine_results.items():
-
-        temp = True
-        if temp:
-            # events = machine_result # (nframes,)
-            machine_result = np.asarray(machine_result)  # shape = [n cases in drc, n frames]
-            times = np.linspace(0, 30, machine_result.shape[1])
-            mean_events = np.mean(machine_result, axis=0)
-            std_events = np.std(machine_result, axis=0)
-        else:
-            # times = machine_result[:,0]
-            # events = machine_result[:,1]
-            machine_result = np.asarray(machine_result)  # shape = [n cases in drc, n frames, 2]
-            times = machine_result[0][:, 0]
-            mean_events = np.mean(machine_result[:, :, 1], axis=0)
-            std_events = np.std(machine_result[:, :, 1], axis=0)
+        machine_result = np.asarray(machine_result)  # shape = [n cases in drc, n frames, 2]
+        times = machine_result[0][:, 0]
+        mean_events = np.mean(machine_result[:, :, 1], axis=0)
+        std_events = np.std(machine_result[:, :, 1], axis=0)
 
         cum_events = np.cumsum(mean_events)
 
@@ -165,6 +149,39 @@ def plot_drc_human(human_results, fig, ax, colors):
     ax2.set_ylabel('# events')
     ax2.set_xticks(times)
     ax2.set_ylim([0, 100])
+
+
+def plot_matchings(machine_results, human_results, matchings):
+
+    video_ids = machine_results.keys()
+
+    for video_id in video_ids: 
+
+        machine_result = machine_results[video_id]
+        human_result = human_results[video_id]
+        matching = matchings[video_id]
+
+        # convert
+        machine_result[:,0] = machine_result[:,0] #/ 60.0 # to minutes 
+        # machine_result[:,0] = machine_result[:,0] / 60 / 30 # to minutes 
+
+        fig,ax = plt.subplots()
+        ax.set_title(video_id)
+        ax.plot(machine_result[:,0],machine_result[:,1],marker='o',label='machine')
+        ax.plot(human_result[:,0],human_result[:,1],marker='s',label='human')
+
+        for machine_event_match, human_event_match in matching.items(): 
+            
+            machine_time_match = machine_result[machine_result[:,1] == machine_event_match,0][0]
+            human_time_match = human_result[human_result[:,1] == human_event_match,0][0]
+
+            ax.plot(\
+                [machine_time_match,human_time_match],\
+                [machine_event_match,human_event_match],color='green',alpha=0.5)
+
+        ax.plot(np.nan,np.nan,color='green',alpha=0.5,label='match')
+        ax.legend()
+
 
 
 def get_colors(some_dict):

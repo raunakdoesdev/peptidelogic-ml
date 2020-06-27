@@ -85,6 +85,7 @@ def generate_drc(clf, video_map, cutoff=50000, pdf=None,
 def evaluate_video(eval_video_path,clf,path_to_dlc_project,clf_force,dlc_force,cutoff=50000):
 
     import os
+    
     dlc = mn.DLCProject(config_path=path_to_dlc_project)
     video_folder='/home/pl/projects/pl/MWT/data/videos'
     videos = mn.folder_to_videos(video_folder, skip_words=('labeled', 'CFR'), labeled=True)
@@ -94,9 +95,17 @@ def evaluate_video(eval_video_path,clf,path_to_dlc_project,clf_force,dlc_force,c
         if os.path.samefile(video.path, eval_video_path):
             video: mn.LabeledVideo = video
             y_pred = clf.predict(xgb.DMatrix(data=mn.video_to_dataset(video, window_size=100, df_map=mn.mouse_map)),
-                             ntree_limit=clf.best_ntree_limit)[:cutoff]
-            result = y_pred
+                             ntree_limit=clf.best_ntree_limit)
+            events = y_pred
             break
+
+    n_frames = events.size
+    nom_fps = 30 
+    times = 1 / nom_fps * np.arange(0,n_frames) 
+    result = np.zeros((n_frames,2))
+    result[:,0] = times
+    result[:,1] = events
+
     return result
 
 
