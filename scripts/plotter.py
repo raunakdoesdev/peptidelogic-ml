@@ -36,7 +36,7 @@ def show():
 
 def plot_instance_over_time_machine(machine_result, fig, ax, color, ax_ylim):
 
-    times = machine_result[:, 0]
+    times = machine_result[:, 0] / 60 # to minutes 
     events = machine_result[:, 1]
 
     cum_events = np.cumsum(events)
@@ -49,10 +49,11 @@ def plot_instance_over_time_machine(machine_result, fig, ax, color, ax_ylim):
 
 def plot_instance_over_time_machine_cluster(machine_result, fig, ax, color, ax_ylim):
     from scipy.interpolate import interp1d
-    interp = interp1d([0, 50000], [0, 30])
+    # interp = interp1d([0, 50000], [0, 30])
 
-    times = interp(machine_result[:, 0])
+    # times = interp(machine_result[:, 0])
     events = machine_result[:, 1]
+    times = machine_result[:, 0] / 60 / 30 # to minutes 
 
     ax2 = ax.twinx()
     ax2.plot(times, events, color=color, marker='x', label='machine cluster')
@@ -84,9 +85,11 @@ def plot_instance_over_time_human(human_result, fig, ax, color, ax_ylim):
 
 
 def plot_drc_machine(machine_results, fig, ax, colors):
+
     for dose, machine_result in machine_results.items():
+
         machine_result = np.asarray(machine_result)  # shape = [n cases in drc, n frames, 2]
-        times = machine_result[0][:, 0]
+        times = machine_result[0][:, 0] / 60 
         mean_events = np.mean(machine_result[:, :, 1], axis=0)
         std_events = np.std(machine_result[:, :, 1], axis=0)
 
@@ -150,39 +153,36 @@ def plot_drc_human(human_results, fig, ax, colors):
     ax2.set_xticks(times)
     ax2.set_ylim([0, 100])
 
+def plot_matching(machine_result, human_result, matching, ax_ylim, title):
 
-def plot_matchings(machine_results, human_results, matchings):
+    alpha = 0.5
 
-    video_ids = machine_results.keys()
+    # convert
+    machine_result[:,0] = machine_result[:,0] / 60 / 30 # to minutes 
 
-    for video_id in video_ids: 
+    fig,ax = plt.subplots()
+    ax.plot(machine_result[:,0],machine_result[:,1],marker='o',label='machine')
+    ax.plot(human_result[:,0],human_result[:,1],marker='s',label='human')
 
-        machine_result = machine_results[video_id]
-        human_result = human_results[video_id]
-        matching = matchings[video_id]
+    for tp in matching["TP"]:
+        ax.axvline(tp,color='green',alpha=alpha)
 
-        # convert
-        # machine_result[:,0] = machine_result[:,0] #/ 60.0 # to minutes 
-        machine_result[:,0] = machine_result[:,0] / 60 / 30 # to minutes 
+    for fn in matching["FN"]:
+        ax.axvline(fn,color='orange',alpha=alpha)
 
-        fig,ax = plt.subplots()
-        ax.set_title(video_id)
-        ax.plot(machine_result[:,0],machine_result[:,1],marker='o',label='machine')
-        ax.plot(human_result[:,0],human_result[:,1],marker='s',label='human')
+    for fp in matching["FP"]:
+        ax.axvline(fp,color='red',alpha=alpha)
 
-        for machine_event_match, human_event_match in matching.items(): 
-            
-            machine_time_match = machine_result[machine_result[:,1] == machine_event_match,0][0]
-            human_time_match = human_result[human_result[:,1] == human_event_match,0][0]
+    ax.plot(np.nan,np.nan,color='green',alpha=alpha,label='TP')
+    ax.plot(np.nan,np.nan,color='orange',alpha=alpha,label='FN')
+    ax.plot(np.nan,np.nan,color='red',alpha=alpha,label='FP')  
 
-            ax.plot(\
-                [machine_time_match,human_time_match],\
-                [machine_event_match,human_event_match],color='green',alpha=0.5)
+    ax.grid(True)
+    ax.legend(loc='lower right')
+    ax.set_title(title)
+    ax.set_ylim(ax_ylim)
 
-        ax.plot(np.nan,np.nan,color='green',alpha=0.5,label='match')
-        ax.grid(True)
-        ax.legend()
-
+    return fig,ax
 
 
 

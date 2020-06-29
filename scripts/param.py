@@ -16,8 +16,9 @@ class Param:
         self.visualize_results_on = True
 
         # sub flags
-        self.compare_human_machine_instance = False
-        self.compare_human_machine_drc = False
+        self.plot_compare_human_machine_instance_on = True
+        self.plot_compare_human_machine_drc_on = True
+        self.plot_matching_on = True
 
         # paths
         self.path_to_clf_model = '../../MWT/models/xgb.save'
@@ -27,6 +28,21 @@ class Param:
         self.path_to_video_to_dose = '../../MWT/data/spreadsheets/06_20_2020_video_id_to_dose_virtual.xlsx'
         self.path_to_blind_summary_report = "../../MWT/data/spreadsheets/06_20_2020_SUMMARY_REPORT.xlsx"
         self.path_to_blind_key_to_video = "../../MWT/data/human_video_label/blind.json"
+
+        # evaluate video param (todo)
+        self.dlc_force = False
+        self.clf_force = False
+        self.eval_human_force_on = False
+
+        # visualize results param
+        self.plot_fn = 'plots.pdf'
+
+        # blind to key code
+        self.test = 'MWT'
+        self.investigator = 'BW'
+
+        # other
+        self.cutoff = 50000
 
         # specify video ids 
         self.video_ids = [
@@ -46,7 +62,6 @@ class Param:
                 "BW_MWT_191105_M2_R2",
                 "BW_MWT_191105_M4_R2",
                 "BW_MWT_191105_M5_R3",
-                "BW_MWT_191104_M1_R1",
                 "BW_MWT_191104_M5_R1",
                 "BW_MWT_191104_M1_R3",
                 "BW_MWT_191104_M6_R3",
@@ -56,17 +71,6 @@ class Param:
                 "BW_MWT_191107_M1_R3",
                 "BW_MWT_191107_M2_R3"
         ]
-
-        # evaluate video param (todo)
-        self.dlc_force = False
-        self.clf_force = False
-
-        # visualize results param
-        self.plot_fn = 'plots.pdf'
-
-        # blind to key code
-        self.test = 'MWT'
-        self.investigator = 'BW'
 
         # validation set param
         self.paths_to_human_label_files = [
