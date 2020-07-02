@@ -1,12 +1,18 @@
 import multiprocessing as mp
+import os
+import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import xgboost as xgb
+from scipy.optimize import linear_sum_assignment
 from sklearn import metrics
+from sklearn.cluster import DBSCAN
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-import pandas as pd
+from termcolor import colored
+
 import mousenet as mn
 
 
@@ -81,30 +87,29 @@ def generate_drc(clf, video_map, cutoff=50000, pdf=None,
         plt.close()
 
 
-# ben version 
-def evaluate_video(eval_video_path,clf,path_to_dlc_project,clf_force,dlc_force,cutoff=50000):
-
+# ben version
+def evaluate_video(eval_video_path, clf, path_to_dlc_project, clf_force, dlc_force, cutoff=50000):
     import os
-    
+
     dlc = mn.DLCProject(config_path=path_to_dlc_project)
-    video_folder='/home/pl/projects/pl/MWT/data/videos'
+    video_folder = '/home/pl/projects/pl/MWT/data/videos'
     videos = mn.folder_to_videos(video_folder, skip_words=('labeled', 'CFR'), labeled=True)
     dlc.infer_trajectories(videos)
 
-    for video in videos: 
+    for video in videos:
         if os.path.samefile(video.path, eval_video_path):
             video: mn.LabeledVideo = video
             y_pred = clf.predict(xgb.DMatrix(data=mn.video_to_dataset(video, window_size=100, df_map=mn.mouse_map)),
-                             ntree_limit=clf.best_ntree_limit)
+                                 ntree_limit=clf.best_ntree_limit)
             events = y_pred
             break
 
     n_frames = events.size
-    nom_fps = 30 
-    times = 1 / nom_fps * np.arange(0,n_frames) 
-    result = np.zeros((n_frames,2))
-    result[:,0] = times
-    result[:,1] = events
+    nom_fps = 30
+    times = 1 / nom_fps * np.arange(0, n_frames)
+    result = np.zeros((n_frames, 2))
+    result[:, 0] = times
+    result[:, 1] = events
 
     return result
 
@@ -176,3 +181,114 @@ def generate_feature_ranking(clf, pdf=None):
     if pdf is not None:
         pdf.savefig()
         plt.close()
+
+
+class XGBoostClassifier:
+    def __init__(self, path_to_clf_model):
+        self.clf = pickle.load(open(path_to_clf_model, 'rb'))
+
+    def infer_video(self, video, save_path, fps=30, force=False):
+        save_path = save_path.format(VIDEO_ID=video.get_video_id())
+        if force or not os.path.exists(save_path):
+            y_pred = self.clf.predict(
+                xgb.DMatrix(data=mn.video_to_dataset(video, window_size=100, df_map=mn.mouse_map)),
+                ntree_limit=self.clf.best_ntree_limit)
+
+            results = pd.DataFrame(data={'Event Confidence': y_pred}, index=np.arange(0, y_pred.size) / fps)
+            results.to_pickle(save_path)
+
+    def __call__(self, videos, save_path, fps=30, force=False):
+        for vid in tqdm(videos, desc='Running/Loading Inference'):
+            self.infer_video(vid, save_path, fps, force)
+
+
+def cluster_events(videos, save_path, eps=10, min_samples=2, force=False, ):
+    for video in tqdm(videos, desc="Computing Clusters"):
+        vid_save_path = save_path.format(VIDEO_ID=video.get_video_id())
+        try:
+            results: pd.DataFrame = pd.read_pickle(vid_save_path)
+        except Exception as e:
+            raise Exception(colored(f"Failed to load prediction csv @ {vid_save_path}. "
+                                    "Did you run inference with the XGBoostClassifier?", 'red'))
+
+        if force or 'Clustered Events' not in results.columns:
+            all_points = np.array([range(len(results['Event Confidence']))]).swapaxes(0, 1)
+            dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+            results['Clustered Events'] = dbscan.fit_predict(all_points,
+                                                             sample_weight=results['Event Confidence'] > 0.5)
+            results.to_pickle(vid_save_path)
+
+
+def event_matching(human_label_file, machine_label_file, video_ids):
+    stats = {
+        "num_TP": 0,
+        "num_FP": 0,
+        "num_FN": 0,
+    }
+
+    matchings = dict()
+
+    # accounts for human delay and machine clustering only start point
+    tolerance_sec = 10
+    tolerance_min = tolerance_sec / 60
+
+    for video_id in video_ids:
+
+        matching = dict()
+        TP = []
+        FN = []
+        FP = []
+        machine_matched = []
+        human_matched = []
+
+        # get results
+        human_labelled_df = pd.read_pickle(human_label_file.format(VIDEO_ID=video_id))
+        human_labelled = np.array([human_labelled_df['Event'], human_labelled_df.index.values]).swapaxes(0, 1)
+        print(human_labelled.shape)
+
+        machine_labelled_df = pd.read_pickle(machine_label_file.format(VIDEO_ID=video_id))
+        machine_labelled_df = machine_labelled_df[machine_labelled_df["Clustered Events"] != -1]
+        machine_labelled_df = machine_labelled_df[machine_labelled_df['Clustered Events'] != machine_labelled_df['Clustered Events'].shift(-1)]
+        machine_labelled = np.array([machine_labelled_df['Clustered Events'], machine_labelled_df.index]).swapaxes(0, 1)
+        print(machine_labelled.shape)
+
+        # convert
+        machine_labelled = np.asarray(machine_labelled, dtype=np.float32)
+        machine_labelled[:, 0] = machine_labelled[:, 0] / 60.0  # dim: [nevents x 2], units: [minutes x Z]
+        machine_labelled = machine_labelled[1:-2, :]  # remove first and last
+
+        # make graph
+        dist = np.abs(human_labelled[:, 0][:, np.newaxis] - machine_labelled[:, 0])
+        dist[dist > tolerance_min] = 1000
+        human_event_assignments, machine_event_assignments = linear_sum_assignment(dist)
+
+        for (human_event_assignment, machine_event_assignment) in zip(human_event_assignments,
+                                                                      machine_event_assignments):
+            if dist[human_event_assignment, machine_event_assignment] < tolerance_min:
+                machine_matched.append(machine_labelled[machine_event_assignment, 1])
+                human_matched.append(human_labelled[human_event_assignment, 1])
+                TP.append(machine_labelled[machine_event_assignment, 0])
+
+        for machine_time, machine_event in machine_labelled:
+            if not machine_event in machine_matched:
+                FP.append(machine_time)
+
+        for human_time, human_event in human_labelled:
+            if not human_event in human_matched:
+                FN.append(human_time)
+
+        stats["num_TP"] += len(TP)
+        stats["num_FP"] += len(FP)
+        stats["num_FN"] += len(FN)
+        matching["TP"] = np.asarray(TP)
+        matching["FP"] = np.asarray(FP)
+        matching["FN"] = np.asarray(FN)
+
+        matchings[video_id] = matching
+
+    stats["precision"] = stats["num_TP"] / (stats["num_TP"] + stats["num_FP"])
+    stats["recall"] = stats["num_TP"] / (stats["num_TP"] + stats["num_FN"])
+
+    print(stats)
+
+    return stats, matchings

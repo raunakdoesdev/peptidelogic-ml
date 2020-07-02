@@ -4,6 +4,7 @@ import logging
 import torch
 import numpy as np
 from sklearn import metrics
+import pandas as pd
 
 
 def in_range(event_ranges, frame_num, map=None):
@@ -114,7 +115,7 @@ class BodypartProcessor:
 
     def distance(self, bp1, bp2):
         return ((self.df[bp1]['x'] - self.df[bp2]['x']) ** 2 + \
-               (self.df[bp1]['y'] - self.df[bp2]['y']) ** 2) ** (1/2)
+                (self.df[bp1]['y'] - self.df[bp2]['y']) ** 2) ** (1 / 2)
 
     def middle(self, a, b):
         self.df[f'{a}-{b}-middle', 'x'] = (self.df[a]['x'] + self.df[b]['x']) / 2
@@ -130,3 +131,18 @@ class BodypartProcessor:
 
     def __setitem__(self, key, value):
         self.df[key, 'feature'] = value
+
+
+def get_dose_to_video_ids(excel_file_path):
+    video_to_dose = dict()
+    video_to_dose_pd = pd.read_excel(excel_file_path)
+    for row in range(video_to_dose_pd.shape[0]):
+        video_id = video_to_dose_pd.iat[row, 0]
+        dose = video_to_dose_pd.iat[row, 1]
+        video_to_dose[video_id] = dose
+
+    dose_to_videos = dict()
+    for key, value in video_to_dose.items():
+        dose_to_videos.setdefault(value, list()).append(key)
+
+    return dose_to_videos

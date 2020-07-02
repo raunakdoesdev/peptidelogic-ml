@@ -35,8 +35,7 @@ def show():
 
 
 def plot_instance_over_time_machine(machine_result, fig, ax, color, ax_ylim):
-
-    times = machine_result[:, 0] / 60 # to minutes 
+    times = machine_result[:, 0] / 60  # to minutes
     events = machine_result[:, 1]
 
     cum_events = np.cumsum(events)
@@ -53,7 +52,7 @@ def plot_instance_over_time_machine_cluster(machine_result, fig, ax, color, ax_y
 
     # times = interp(machine_result[:, 0])
     events = machine_result[:, 1]
-    times = machine_result[:, 0] / 60 / 30 # to minutes 
+    times = machine_result[:, 0] / 60 / 30  # to minutes
 
     ax2 = ax.twinx()
     ax2.plot(times, events, color=color, marker='x', label='machine cluster')
@@ -85,11 +84,9 @@ def plot_instance_over_time_human(human_result, fig, ax, color, ax_ylim):
 
 
 def plot_drc_machine(machine_results, fig, ax, colors):
-
     for dose, machine_result in machine_results.items():
-
         machine_result = np.asarray(machine_result)  # shape = [n cases in drc, n frames, 2]
-        times = machine_result[0][:, 0] / 60 
+        times = machine_result[0][:, 0] / 60
         mean_events = np.mean(machine_result[:, :, 1], axis=0)
         std_events = np.std(machine_result[:, :, 1], axis=0)
 
@@ -127,7 +124,6 @@ def plot_drc_machine_cluster(machine_results, fig, ax, colors):
     ax2.set_ylim([0, 100])
 
 
-
 def plot_drc_human(human_results, fig, ax, colors):
     ax2 = ax.twinx()
 
@@ -153,37 +149,36 @@ def plot_drc_human(human_results, fig, ax, colors):
     ax2.set_xticks(times)
     ax2.set_ylim([0, 100])
 
-def plot_matching(machine_result, human_result, matching, ax_ylim, title):
 
+def plot_matching(machine_result, human_result, matching, ax_ylim, title):
     alpha = 0.5
 
     # convert
-    machine_result[:,0] = machine_result[:,0] / 60 / 30 # to minutes 
+    machine_result[:, 0] = machine_result[:, 0] / 60 / 30  # to minutes
 
-    fig,ax = plt.subplots()
-    ax.plot(machine_result[:,0],machine_result[:,1],marker='o',label='machine')
-    ax.plot(human_result[:,0],human_result[:,1],marker='s',label='human')
+    fig, ax = plt.subplots()
+    ax.plot(machine_result[:, 0], machine_result[:, 1], marker='o', label='machine')
+    ax.plot(human_result[:, 0], human_result[:, 1], marker='s', label='human')
 
     for tp in matching["TP"]:
-        ax.axvline(tp,color='green',alpha=alpha)
+        ax.axvline(tp, color='green', alpha=alpha)
 
     for fn in matching["FN"]:
-        ax.axvline(fn,color='orange',alpha=alpha)
+        ax.axvline(fn, color='orange', alpha=alpha)
 
     for fp in matching["FP"]:
-        ax.axvline(fp,color='red',alpha=alpha)
+        ax.axvline(fp, color='red', alpha=alpha)
 
-    ax.plot(np.nan,np.nan,color='green',alpha=alpha,label='TP')
-    ax.plot(np.nan,np.nan,color='orange',alpha=alpha,label='FN')
-    ax.plot(np.nan,np.nan,color='red',alpha=alpha,label='FP')  
+    ax.plot(np.nan, np.nan, color='green', alpha=alpha, label='TP')
+    ax.plot(np.nan, np.nan, color='orange', alpha=alpha, label='FN')
+    ax.plot(np.nan, np.nan, color='red', alpha=alpha, label='FP')
 
     ax.grid(True)
     ax.legend(loc='lower right')
     ax.set_title(title)
     ax.set_ylim(ax_ylim)
 
-    return fig,ax
-
+    return fig, ax
 
 
 def get_colors(some_dict):

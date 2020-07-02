@@ -19,7 +19,7 @@ def mouse_map(df):
     bp['relative_length'] = bp.distance('nose', bp.middle('ear_left', 'ear_right')) / \
                             bp.distance('tail', bp.middle('ear_left', 'ear_right'))
     bp['relative_elongation'] = bp.distance('tail', bp.middle('ear_left', 'ear_right')) / \
-                            bp.distance('ear_left','ear_right')
+                                bp.distance('ear_left', 'ear_right')
 
     # for dir in ('left', 'right'):
     #     bp[f'{dir}_hh_extension'] = bp.distance(f'hindheel_{dir}', 'tail')
@@ -27,12 +27,12 @@ def mouse_map(df):
     #     bp[f'{dir}_hh_hp_extension'] = bp.distance(f'hindpaw_{dir}', f'hindheel_{dir}')
 
     for dir in ('left', 'right'):
-        bp[f'{dir}_hh_extension'] = bp.distance(f'hindheel_{dir}', 'tail')/ \
-                            bp.distance('ear_left','ear_right')
-        bp[f'{dir}_hp_extension'] = bp.distance(f'hindpaw_{dir}', 'tail')/ \
-                            bp.distance('ear_left','ear_right')
+        bp[f'{dir}_hh_extension'] = bp.distance(f'hindheel_{dir}', 'tail') / \
+                                    bp.distance('ear_left', 'ear_right')
+        bp[f'{dir}_hp_extension'] = bp.distance(f'hindpaw_{dir}', 'tail') / \
+                                    bp.distance('ear_left', 'ear_right')
         bp[f'{dir}_hh_hp_extension'] = bp.distance(f'hindpaw_{dir}', f'hindheel_{dir}') / \
-                            bp.distance('ear_left','ear_right')
+                                       bp.distance('ear_left', 'ear_right')
 
     return bp.prune()
 

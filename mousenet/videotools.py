@@ -26,6 +26,9 @@ class Video:
     def get_name(self):
         return os.path.basename(self.path)
 
+    def get_video_id(self):
+        return self.get_name().split('.')[0]
+
     def get_num_frames(self):
         if self.num_frames is not None: return self.num_frames
         self.num_frames = int(cv2.VideoCapture(self.path).get(cv2.CAP_PROP_FRAME_COUNT))
@@ -157,6 +160,24 @@ def folder_to_videos(video_folder, skip_words=('labeled',), required_words=[], p
     if labeled:
         return video_paths if paths else [LabeledVideo(video_path) for video_path in video_paths]
     return video_paths if paths else [Video(video_path) for video_path in video_paths]
+
+
+def ids_to_videos(video_folder, video_ids):
+    """
+    Returns a list of ids for each video.
+    :param dlc_config: path to DLC configuration file
+    :param video_folder: path to folder containing videos
+    :param video_ids: list of video ids to include
+    :return:
+    """
+    videos = folder_to_videos(video_folder, skip_words=('labeled', 'CFR'), labeled=True)
+    matched_videos = []
+    for video in videos.copy():
+        for video_id in video_ids:
+            if video_id in video.path:
+                matched_videos.append(video)
+                break
+    return matched_videos
 
 
 def json_to_videos(video_folder, json_path, mult=1):

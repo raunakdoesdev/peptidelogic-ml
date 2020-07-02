@@ -10,10 +10,10 @@ class Param:
         self.retrain_dlc_on = False
         self.label_clf_on = False
         self.retrain_clf_on = False
-        self.evaluate_vid_on = False
-        self.evaluate_cluster_on = False
-        self.evaluate_matching_on = True
-        self.visualize_results_on = True
+        self.evaluate_vid_on = True
+        self.evaluate_cluster_on = True
+        self.evaluate_matching_on = False
+        self.visualize_results_on = False
 
         # sub flags
         self.plot_compare_human_machine_instance_on = True

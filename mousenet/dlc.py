@@ -123,7 +123,7 @@ class DLCProject:
         return deeplabcut.auxiliaryfunctions.GetScorerName(cfg, shuffle, train_fraction,
                                                            trainingsiterations=trainingsiterations)
 
-    def infer_trajectories(self, videos, num_procs=None, infer=True,):
+    def infer_trajectories(self, videos, num_procs=None, force=False, ):
         scorer_name = self.get_scorer_name()
         uninferred_video_paths = []
 
@@ -140,9 +140,9 @@ class DLCProject:
             if not os.path.exists(label_path):
                 uninferred_video_paths.append(video.path)
             else:
-                logging.warning(f'Label file exists @ {label_path}. Skipping inference on {video.path}')
+                logging.info(f'Label file exists @ {label_path}. Skipping inference on {video.path}')
 
-        if infer and len(uninferred_video_paths) > 0:
+        if force or len(uninferred_video_paths) > 0:
             with util.DisableLogger():
                 with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
                     num_gpus = 4
