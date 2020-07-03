@@ -3,7 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 import json
-
+from tqdm import tqdm
 
 def extract_human_labels(key_to_video_id, human_label_files, save_path, force=False):
     """
@@ -16,7 +16,7 @@ def extract_human_labels(key_to_video_id, human_label_files, save_path, force=Fa
 
     blind_key_to_mouse_times = dict()
 
-    for human_label_file in human_label_files:
+    for human_label_file in tqdm(human_label_files, desc='Reading Human Label Files'):
         for human_label_file in human_label_files:
             bsr_xls = pd.ExcelFile(human_label_file)
 
@@ -38,7 +38,7 @@ def extract_human_labels(key_to_video_id, human_label_files, save_path, force=Fa
             for chamber, event_times in chamber_to_event_times.items():
                 blind_key_to_mouse_times[chamber_to_blind_key[chamber]] = chamber_to_event_times[chamber]
 
-    for blind_key, mouse_times in blind_key_to_mouse_times.items():
+    for blind_key, mouse_times in tqdm(blind_key_to_mouse_times.items(), desc='Saving Human Label Files'):
         mouse_times = np.asarray(mouse_times, dtype=np.float32)
         df = pd.DataFrame(data={'Event': 1 + np.arange(0, mouse_times.shape[0])}, index=mouse_times)
         df.to_pickle(save_path.format(VIDEO_ID=key_to_video_id[str(blind_key)]))

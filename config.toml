@@ -2,25 +2,27 @@
     save_path = '/home/pl/projects/pl/MWT/results/{VIDEO_ID}.machine.pkl'  # {VIDEO_ID} will be auto-replaced
 
     [inference.classifier]
-    evaluate = true
+    refresh = false
     force_dlc = false
     force_xgb = false
 
-    [inference.classifier.models]
+        [inference.classifier.models]
         xgb_model_path = "/home/pl/projects/pl//MWT/models/xgb.save"
         dlc_config_path = "/home/pl/projects/pl/DLC/Retraining-BenR-2020-05-25/config.yaml"
 
     [inference.cluster]
-    evaluate = true
-    force = false
-    eps = 10  # maximum distance between two samples for one to be considered as in the neighborhood of the other
-    min_samples = 2  # number of samples (or total weight) in a neighborhood for a point to be considered a core point
+    refresh = true
+    force = true
+    eps = 20  # maximum distance between two samples for one to be considered as in the neighborhood of the other
+    min_samples = 1  # number of samples (or total weight) in a neighborhood for a point to be considered a core point
+    thresh = 0.1
 
 [event_matching]
-evaluate = true
+refresh = true
+save_path = '/home/pl/projects/pl/MWT/results/event_stats.pkl'
 
 [visualization]
-    evaluate = true
+    refresh = true
     drc = true
     video_instances = true
     plot_matching = true
@@ -38,6 +40,7 @@ evaluate = true
     dosage = '/home/pl/projects/pl/MWT/data/spreadsheets/06_20_2020_video_id_to_dose_virtual.xlsx'
 
 [human_labels]
+    refresh = false
     summary_file = "/home/pl/projects/pl/MWT/data/spreadsheets/06_20_2020_SUMMARY_REPORT.xlsx"
     individual_files = ["/home/pl/projects/pl/MWT/data/spreadsheets/MWTest_20200618_BW_1.xlsm",
                         "/home/pl/projects/pl/MWT/data/spreadsheets/MWTest_20200618_BW_2.xlsm",

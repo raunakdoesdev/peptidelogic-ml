@@ -2,10 +2,8 @@ from tqdm import tqdm
 from tqdm.contrib import tzip
 
 from mousenet.vis import plotter
-import seaborn as sns;
+import seaborn as sns
 import numpy as np
-
-sns.set()
 import pandas as pd
 
 
@@ -15,7 +13,7 @@ def load(x):
     return x
 
 
-def plot_single_video_instance(human_results, machine_df, video_id):
+def plot_single_video_instance(human_results, machine_df, video_id, matching_stats):
     machine_df: pd.DataFrame = load(machine_df.format(VIDEO_ID=video_id))
 
     fig, ax = plotter.make_fig()
@@ -39,6 +37,15 @@ def plot_single_video_instance(human_results, machine_df, video_id):
     ax.set_ylim(bottom=0.0)
     ax.set(title=video_id, xlabel='Time (minutes)', ylabel='# of Events')
     ax.legend(ax.lines + ax2.lines, ["Human", "Machine Clustered", "Machine Raw"])
+
+    if matching_stats is not None:
+        alpha=0.3
+        for tp in matching_stats['TP']:
+            ax.axvline(x=tp, color='green', alpha=alpha)
+        for fp in matching_stats['FP']:
+            ax.axvline(x=fp, color='red', alpha=alpha)
+        for fn in matching_stats['FN']:
+            ax.axvline(x=fn, color='orange', alpha=alpha)
 
 
 def plot_drc(human_results, machine_df_path, dose_to_videos):

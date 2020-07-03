@@ -1,11 +1,13 @@
 import os
 import subprocess
-
+import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-plt.rcParams.update({'font.size': 15, 'figure.max_open_warning': 0})
-plt.rcParams['lines.linewidth'] = 2.5  # 2.5
+# Set Plotting Defaults
+sns.set()
+plt.rcParams.update({'figure.max_open_warning': 0})
+
 
 def save_figs(filename):
     fn = os.path.join(os.getcwd(), filename)
