@@ -1,10 +1,11 @@
-from enum import Enum
-from itertools import islice
 import logging
-import torch
+import pickle
+from enum import Enum
+
 import numpy as np
-from sklearn import metrics
 import pandas as pd
+import torch
+from sklearn import metrics
 
 
 def in_range(event_ranges, frame_num, map=None):
@@ -129,6 +130,9 @@ class BodypartProcessor:
                 cols.append(col)
         return self.df[cols]
 
+    def speed(self, bp):
+        return (self.df[bp]['x'].diff().abs() ** 2 + self.df[bp]['y'].diff().abs() ** 2) ** (1 / 2)
+
     def __setitem__(self, key, value):
         self.df[key, 'feature'] = value
 
@@ -146,3 +150,50 @@ def get_dose_to_video_ids(excel_file_path):
         dose_to_videos.setdefault(value, list()).append(key)
 
     return dose_to_videos
+
+
+def get_ypreds(videos, save_path):
+    y_clustered = []
+    y_pred = []
+    for video in videos:
+        video_id = video.get_video_id()
+        df = pd.read_pickle(save_path.format(VIDEO_ID=video_id))
+
+        df.loc[df['Clustered Events'] != -1, 'Clustered Events'] = 1
+        df.loc[df['Clustered Events'] == -1, 'Clustered Events'] = 0
+
+        y_clustered.append(df['Clustered Events'].to_numpy())
+        y_pred.append(df['Event Confidence'].to_numpy())
+
+    return y_pred, y_clustered
+
+
+def get_human_pred(videos, save_path):
+    human_preds = []
+    for video in videos:
+        video_id = video.get_video_id()
+        human_labelled_df = pd.read_pickle(save_path.format(VIDEO_ID=video_id.replace('CFR', '')))
+        human_labelled = np.array([list(human_labelled_df.index.values), list(human_labelled_df['Event'])]).swapaxes(0,
+                                                                                                                     1)
+        human_pred = np.zeros(30 * 60 * 30)
+        for event_time in human_labelled[:, 0]:
+            human_pred[int(event_time * 30 * 60)] = 1
+        human_preds.append(human_pred)
+        
+    return human_preds
+
+
+def generate_classification_vector(videos, matching_save_path):
+    matching = pickle.load(open(matching_save_path, 'rb'))
+    vectors = []
+    for video in videos:
+        vector = np.empty(video.get_num_frames())
+        vector.fill(ClassificationTypes.TRUE_NEGATIVE.value)
+        for tp in matching[video.get_video_id()]['TP']:
+            vector[int(tp * 60 * 30)] = ClassificationTypes.TRUE_POSITIVE.value
+        for tp in matching[video.get_video_id()]['FP']:
+            vector[int(tp * 60 * 30)] = ClassificationTypes.FALSE_POSITIVE.value
+        for tp in matching[video.get_video_id()]['FN']:
+            vector[int(tp * 60 * 30)] = ClassificationTypes.FALSE_NEGATIVE.value
+        vectors.append(vector)
+    return vectors

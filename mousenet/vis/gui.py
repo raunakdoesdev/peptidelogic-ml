@@ -1,3 +1,4 @@
+import copy
 import logging
 import os
 
@@ -12,11 +13,11 @@ import mousenet as mn
 
 sg.theme('LightGrey1')  # Define GUI Theme
 
+if 'DISPLAY' not in os.environ:  # Use TeamViewer if SSH'd
+    os.environ['DISPLAY'] = ':1'
 
-def visual_debugger(videos, y_preds, y, class_tensors, val_percent=None, scaling=1.0):
-    if 'DISPLAY' not in os.environ:  # Use TeamViewer if SSH'd
-        os.environ['DISPLAY'] = ':1'
 
+def visual_debugger(videos, vectors, class_tensors, val_percent=None, scaling=1.0):
     video_paths = [video.path for video in videos]
     video = videos[0]
 
@@ -26,7 +27,7 @@ def visual_debugger(videos, y_preds, y, class_tensors, val_percent=None, scaling
 
     vb = VideoBrowser(video, scaling=0.5, control_scaling=0.8)
     eb = ErrorBrowser(error_list=class_tensors[0], scaling=1)
-    gp = GUIPlots(dpts=[y[0], y_preds[0]], scaling=scaling, val_percent=val_percent)
+    gp = GUIPlots(dpts=[vector[0] for vector in vectors], scaling=scaling, val_percent=val_percent)
 
     # Get Windows
     video_window, control_window = vb.get_windows()
@@ -51,7 +52,7 @@ def visual_debugger(videos, y_preds, y, class_tensors, val_percent=None, scaling
             window['Frame Picker'].update(int(vb.frame_num),
                                           values=[str(i) for i in range(vb.video.start, vb.video.end)])
             window['event_list'].update(eb.process_error_list(class_tensors[vid_idx]))
-            gp.dpts = [y[vid_idx], y_preds[vid_idx]]
+            gp.dpts = [vector[vid_idx] for vector in vectors]
 
         update = eb.update(window, values, event)
         if update:
@@ -145,7 +146,10 @@ class ErrorBrowser:
         self.event_changes = np.where(error_list[:-1] != error_list[1:])[0]
         self.event_changes = [idx + 1 for idx in self.event_changes]
         self.event_change_names = []
-        for idx in self.event_changes:
+        for idx in copy.deepcopy(self.event_changes):
+            if mn.ClassificationTypes(error_list[idx]).name == 'TRUE_NEGATIVE':
+                self.event_changes.remove(idx)
+                continue
             self.event_change_names.append(mn.ClassificationTypes(error_list[idx]).name)
         self.error_list = [f'{idx} - {event}' for idx, event in zip(self.event_changes, self.event_change_names)]
         return self.error_list
@@ -193,7 +197,7 @@ class GUIPlots:
         self.dpts = dpts
 
     def init_plot(self, window):
-        self.fig = Figure(figsize=(7 * self.scaling, 2 * self.scaling))
+        self.fig = Figure(figsize=(7 * self.scaling, len(self.dpts) * self.scaling))
         self.axes = []
         for axis in range(1, len(self.dpts) + 1):
             self.axes.append(self.fig.add_subplot(len(self.dpts), 1, axis))
@@ -216,7 +220,7 @@ class GUIPlots:
                 axis.cla()
                 axis.grid()
                 axis.set_ylim([-0.2, 1.2])
-                axis.axvline(0, c='r')
+                axis.axvline(50, c='r')
                 if 100 + idx < (1 - self.val_percent) * len(data):
                     rect = plt.Rectangle((0., 0.), 100, 1, fill=True, alpha=0.2)
                     axis.add_patch(rect)
@@ -224,7 +228,10 @@ class GUIPlots:
                     rect = plt.Rectangle((0., 0.), ((1 - self.val_percent) * len(data)) - idx, 1, fill=True,
                                          alpha=0.2)
                     axis.add_patch(rect)
-                axis.plot(range(100), data[idx: idx + 100])
+                axis.set_xlim([0, 100])
+                width = (idx + 50 - max(idx - 50, 0))
+                axis.plot(range(100 - width, 100), data[max(idx - 50, 0) : idx + 50])
+
             self.fig_agg.draw()
         except Exception as e:
             logging.exception(e)

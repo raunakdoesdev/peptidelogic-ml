@@ -5,6 +5,7 @@ import pandas as pd
 import json
 from tqdm import tqdm
 
+
 def extract_human_labels(key_to_video_id, human_label_files, save_path, force=False):
     """
     Reads data from human label files and saves in similar format to machine labels.
@@ -57,6 +58,7 @@ def get_video_to_dose(path_to_video_to_dose):
 
 def extract_drc_human_labels(video_ids, human_label_file, key_to_video_id_file, video_to_dose_file):
     # load human results
+    video_ids = [video_id.replace('CFR', '') for video_id in video_ids]
     human_results = dict()
     bsr_xls = pd.ExcelFile(human_label_file)
     key_to_video_id = json.load(open(key_to_video_id_file))
@@ -87,8 +89,10 @@ def extract_drc_human_labels(video_ids, human_label_file, key_to_video_id_file, 
 
     return human_results
 
+
 def extract_video_human_labels(video_ids, human_label_file, key_to_video_id_file, video_to_dose_file):
     # load human results
+    video_ids = [video_id.replace('CFR', '') for video_id in video_ids]
     human_results = dict()
     bsr_xls = pd.ExcelFile(human_label_file)
     key_to_video_id = json.load(open(key_to_video_id_file))

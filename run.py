@@ -20,6 +20,26 @@ def load(x):
 
 def main(cfg):
     videos = mn.ids_to_videos(cfg['videos']['path_to_videos'], load(cfg['videos']['video_ids']))
+    if cfg['training']['dlc']:
+        dlc = mn.DLCProject(config_path=cfg['inference']['classifier']['models']['dlc_config_path'])
+        dlc.create_training_set()
+        dlc.train_network()
+
+    if cfg['training']['xgb']['refresh']:
+        dlc = mn.DLCProject(config_path=cfg['inference']['classifier']['models']['dlc_config_path'])
+        labeled_videos = mn.json_to_videos(cfg['videos']['path_to_videos'],
+                                           cfg['training']['xgb']['label_json'])
+        dlc.infer_trajectories(labeled_videos, force=cfg['inference']['classifier']['force_dlc'])
+
+        print('Generating Dataset. This may take a while...')
+        X_train, X_test, y_train, y_test, X_video_list, y_video_list = mn.get_sklearn_dataset(labeled_videos,
+                                                                                              window_size=100,
+                                                                                              test_size=cfg['training']['xgb']['test_size'],
+                                                                                              df_map=mn.mouse_map)
+
+        clf = mn.train_xgboost(X_train, y_train, X_test, y_test)
+        pickle.dump(clf, open(cfg['training']['xgb']['save_path'], 'wb'))
+        cfg['inference']['classifier']['models']['xgb_model_path'] = cfg['training']['xgb']['save_path']  # if training, then use
 
     if cfg['inference']['classifier']['refresh']:
         dlc = mn.DLCProject(config_path=cfg['inference']['classifier']['models']['dlc_config_path'])
@@ -41,6 +61,13 @@ def main(cfg):
         mn.event_matching(cfg['human_labels']['save_path'], cfg['inference']['save_path'], cfg['videos']['video_ids'],
                           cfg['event_matching']['save_path'])
 
+    if cfg['visual_debugger']['run']:
+        cfr_videos = [video for video in videos if 'CFR' in video.get_video_id()]
+        y_pred, y_clustered = mn.get_ypreds(cfr_videos, cfg['inference']['save_path'])
+        human_pred = mn.get_human_pred(cfr_videos, cfg['human_labels']['save_path'])
+        class_vectors = mn.generate_classification_vector(cfr_videos, cfg['event_matching']['save_path'])
+        mn.visual_debugger(cfr_videos, (y_clustered, y_pred, human_pred), class_vectors, val_percent=0)
+
     if cfg['visualization']['refresh']:
         if cfg['visualization']['video_instances']:
             if cfg['visualization']['plot_matching']:
@@ -53,9 +80,11 @@ def main(cfg):
                                                          cfg['human_labels']['blind_key_to_video_id'],
                                                          cfg['videos']['dosage'])
 
+            print(human_labels.keys())
             for video in tqdm(videos, desc='Plotting Single Videos'):
                 video_id = video.get_video_id()
-                mn.vis.plot_single_video_instance(human_labels[video_id], cfg['inference']['save_path'],
+                mn.vis.plot_single_video_instance(human_labels[video_id.replace('CFR', '')],
+                                                  cfg['inference']['save_path'],
                                                   video_id, matching_stats[video_id])
 
         if cfg['visualization']['drc']:

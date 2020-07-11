@@ -20,6 +20,8 @@ def mouse_map(df):
                             bp.distance('tail', bp.middle('ear_left', 'ear_right'))
     bp['relative_elongation'] = bp.distance('tail', bp.middle('ear_left', 'ear_right')) / \
                                 bp.distance('ear_left', 'ear_right')
+    bp['head_speed'] = bp.speed(bp.middle('ear_left', 'ear_right'))
+    bp['body_speed'] = bp.speed(bp.middle(bp.middle('ear_right', 'ear_left'), 'tail'))
 
     # for dir in ('left', 'right'):
     #     bp[f'{dir}_hh_extension'] = bp.distance(f'hindheel_{dir}', 'tail')

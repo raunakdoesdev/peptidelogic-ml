@@ -1,20 +1,34 @@
+[training]
+dlc = false
+
+    [training.xgb]
+    refresh = false
+    label_json = '/home/pl/projects/pl/MWT/human_label_json/2020-07-05_ben_fused.json'
+#     label_json = '/home/pl/projects/pl/MWT/human_label_json/2020-06-03_ben-synced.json'
+    save_path = '/home/pl/projects/pl//MWT/models/dlc_json_new.save'
+    test_size = 0.25
+
+[visual_debugger]
+run = true
+
 [inference]
     save_path = '/home/pl/projects/pl/MWT/results/{VIDEO_ID}.machine.pkl'  # {VIDEO_ID} will be auto-replaced
 
     [inference.classifier]
-    refresh = false
+    refresh = true
     force_dlc = false
-    force_xgb = false
+    force_xgb = true
 
         [inference.classifier.models]
-        xgb_model_path = "/home/pl/projects/pl//MWT/models/xgb.save"
-        dlc_config_path = "/home/pl/projects/pl/DLC/Retraining-BenR-2020-05-25/config.yaml"
+        xgb_model_path = '/home/pl/projects/pl//MWT/models/dlc_new.save' # "/home/pl/projects/pl//MWT/models/xgb.save"
+#        dlc_config_path = "/home/pl/projects/pl/DLC/Retraining-BenR-2020-05-25/config.yaml"
+        dlc_config_path = "/home/pl/projects/pl/DLC/05_07_2020-ben-2020-07-05/config.yaml"
 
     [inference.cluster]
     refresh = true
-    force = true
-    eps = 20  # maximum distance between two samples for one to be considered as in the neighborhood of the other
-    min_samples = 1  # number of samples (or total weight) in a neighborhood for a point to be considered a core point
+    force = false
+    eps = 15  # maximum distance between two samples for one to be considered as in the neighborhood of the other
+    min_samples = 10  # number of samples (or total weight) in a neighborhood for a point to be considered a core point
     thresh = 0.1
 
 [event_matching]
@@ -30,13 +44,14 @@ save_path = '/home/pl/projects/pl/MWT/results/event_stats.pkl'
     auto_open = false
 
 [videos]
-    path_to_videos = '/home/pl/projects/pl/MWT/data/videos/'
-    video_ids = ["BW_MWT_191104_M1_R1", "BW_MWT_191104_M2_R2", "BW_MWT_191105_M1_R2", "BW_MWT_191105_M3_R3",
-                 "BW_MWT_191107_M4_R2", "BW_MWT_191107_M5_R3", "BW_MWT_191104_M3_R1", "BW_MWT_191104_M1_R2",
-                 "BW_MWT_191104_M2_R3", "BW_MWT_191105_M5_R2", "BW_MWT_191105_M6_R3", "BW_MWT_191104_M2_R1",
-                 "BW_MWT_191104_M3_R2", "BW_MWT_191105_M2_R2", "BW_MWT_191105_M4_R2", "BW_MWT_191105_M5_R3",
-                 "BW_MWT_191104_M5_R1", "BW_MWT_191104_M1_R3", "BW_MWT_191104_M6_R3", "BW_MWT_191105_M2_R3",
-                 "BW_MWT_191107_M2_R2", "BW_MWT_191107_M3_R2", "BW_MWT_191107_M1_R3", "BW_MWT_191107_M2_R3"]
+    path_to_videos = '/home/pl/projects/pl/MWT/data/'
+#    video_ids = ['CFRBW_MWT_191104_M2_R3']#, 'CFRBW_MWT_191104_M2_R3']
+    video_ids = ["CFRBW_MWT_191104_M1_R1", "CFRBW_MWT_191104_M2_R2", "CFRBW_MWT_191105_M1_R2", "CFRBW_MWT_191105_M3_R3",
+                 "CFRBW_MWT_191107_M4_R2", "CFRBW_MWT_191107_M5_R3", "CFRBW_MWT_191104_M3_R1", "CFRBW_MWT_191104_M1_R2",
+                 "CFRBW_MWT_191104_M2_R3", "CFRBW_MWT_191105_M5_R2", "CFRBW_MWT_191105_M6_R3", "CFRBW_MWT_191104_M2_R1",
+                 "CFRBW_MWT_191104_M3_R2", "CFRBW_MWT_191105_M2_R2", "CFRBW_MWT_191105_M4_R2", "CFRBW_MWT_191105_M5_R3",
+                 "CFRBW_MWT_191104_M5_R1", "CFRBW_MWT_191104_M1_R3", "CFRBW_MWT_191104_M6_R3", "CFRBW_MWT_191105_M2_R3",
+                 "CFRBW_MWT_191107_M2_R2", "CFRBW_MWT_191107_M3_R2", "CFRBW_MWT_191107_M1_R3", "CFRBW_MWT_191107_M2_R3"]
     dosage = '/home/pl/projects/pl/MWT/data/spreadsheets/06_20_2020_video_id_to_dose_virtual.xlsx'
 
 [human_labels]

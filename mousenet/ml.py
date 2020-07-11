@@ -198,11 +198,12 @@ class XGBoostClassifier:
             results.to_pickle(save_path)
 
     def __call__(self, videos, save_path, fps=30, force=False):
+        print(videos)
         for vid in tqdm(videos, desc='Running/Loading Inference'):
             self.infer_video(vid, save_path, fps, force)
 
 
-def cluster_events(videos, save_path, thresh=0.3, eps=10, min_samples=2, force=False, ):
+def cluster_events(videos, save_path, thresh, eps=10, min_samples=2, force=False, ):
     for video in tqdm(videos, desc="Computing Clusters"):
         vid_save_path = save_path.format(VIDEO_ID=video.get_video_id())
         try:
@@ -214,8 +215,9 @@ def cluster_events(videos, save_path, thresh=0.3, eps=10, min_samples=2, force=F
         if force or 'Clustered Events' not in results.columns:
             all_points = np.array([range(len(results['Event Confidence']))]).swapaxes(0, 1)
             dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+
             results['Clustered Events'] = dbscan.fit_predict(all_points,
-                                                             sample_weight=results['Event Confidence'] > 0.3)
+                                                             sample_weight=results['Event Confidence'] > thresh)
             results.to_pickle(vid_save_path)
 
 
@@ -239,7 +241,7 @@ def event_matching(human_label_file, machine_label_file, video_ids, save_path):
         human_matched = []
 
         # get results
-        human_labelled_df = pd.read_pickle(human_label_file.format(VIDEO_ID=video_id))
+        human_labelled_df = pd.read_pickle(human_label_file.format(VIDEO_ID=video_id.replace('CFR', '')))
         human_labelled = np.array([list(human_labelled_df.index.values), list(human_labelled_df['Event'])]).swapaxes(0,
                                                                                                                      1)
         machine_labelled_df = pd.read_pickle(machine_label_file.format(VIDEO_ID=video_id))

@@ -5,6 +5,10 @@ from mousenet.vis import plotter
 import seaborn as sns
 import numpy as np
 import pandas as pd
+import os
+
+if 'DISPLAY' not in os.environ:  # Use TeamViewer if SSH'd
+    os.environ['DISPLAY'] = ':1'
 
 
 def load(x):
@@ -23,7 +27,8 @@ def plot_single_video_instance(human_results, machine_df, video_id, matching_sta
     human_mean = np.mean(np.array(human_results), axis=0)[:, 1].cumsum()
     human_std = np.std(np.array(human_results), axis=0)[:, 1]
     sns.lineplot(human_results[0][:, 0], y=human_mean, ax=ax, ci=None)
-    ax.fill_between(human_results[0][:, 0], human_mean - human_std * 0.5, human_mean + human_std * 0.5, color='blue', alpha=0.2)
+    ax.fill_between(human_results[0][:, 0], human_mean - human_std * 0.5, human_mean + human_std * 0.5, color='blue',
+                    alpha=0.2)
     sns.lineplot(machine_df.index.values / 60, y=machine_df['Clustered Events'].replace(-1, method='ffill') + 1, ax=ax,
                  ci=None, markevery=5000, marker='^')
     sns.lineplot(machine_df.index.values / 60, y=machine_df['Event Confidence'].cumsum(), ax=ax2,
@@ -39,7 +44,7 @@ def plot_single_video_instance(human_results, machine_df, video_id, matching_sta
     ax.legend(ax.lines + ax2.lines, ["Human", "Machine Clustered", "Machine Raw"])
 
     if matching_stats is not None:
-        alpha=0.3
+        alpha = 0.3
         for tp in matching_stats['TP']:
             ax.axvline(x=tp, color='green', alpha=alpha)
         for fp in matching_stats['FP']:
