@@ -1,5 +1,6 @@
 import pathlib
 import sys
+
 sys.path.append(str(pathlib.Path(__file__).parent.absolute().parent.absolute()))
 
 import os
@@ -61,7 +62,9 @@ def master_gui():
             window['config'].update(project_generation().config_path)
         if event == 'Get Extracted Frames':
             frames_folder = sg.filedialog.askdirectory()
-            shutil.copytree(frames_folder, os.path.join(os.path.dirname(values['config']), 'labeled-data', 'temp'))
+            print(os.path.basename(frames_folder))
+            shutil.copytree(frames_folder, os.path.join(os.path.dirname(values['config']), 'labeled-data',
+                                                        f'{os.path.basename(frames_folder)}'))
         if event == 'Locate Config':
             dlc_config_path = sg.filedialog.askopenfilename(filetypes=[('YAML File', '*.yaml')],
                                                             defaultextension=[('YAML File', '*.yaml')])

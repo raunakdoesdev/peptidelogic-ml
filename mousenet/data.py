@@ -12,35 +12,70 @@ from mousenet import util
 import matplotlib.pyplot as plt
 
 
-def video_to_dataset(video, window_size):
-    df = pd.read_hdf(video.df_path)
-    df = df[df.columns.get_level_values(0).unique()[0]]
-    df = df.iloc[int(video.start): int(video.end)]
+def mouse_map(df):
+    bp = util.BodypartProcessor(df)
+    bp['body_turn'] = bp.distance('ear_left', 'tail') / bp.distance('ear_right', 'tail')
+    bp['relative_depth'] = bp.area('ear_left', 'ear_right', 'nose') / bp.area('ear_left', 'ear_right', 'tail')
+    bp['relative_length'] = bp.distance('nose', bp.middle('ear_left', 'ear_right')) / \
+                            bp.distance('tail', bp.middle('ear_left', 'ear_right'))
+    bp['relative_elongation'] = bp.distance('tail', bp.middle('ear_left', 'ear_right')) / \
+                                bp.distance('ear_left', 'ear_right')
+    bp['head_speed'] = bp.speed(bp.middle('ear_left', 'ear_right'))
+    bp['body_speed'] = bp.speed(bp.middle(bp.middle('ear_right', 'ear_left'), 'tail'))
 
+    # for dir in ('left', 'right'):
+    #     bp[f'{dir}_hh_extension'] = bp.distance(f'hindheel_{dir}', 'tail')
+    #     bp[f'{dir}_hp_extension'] = bp.distance(f'hindpaw_{dir}', 'tail')
+    #     bp[f'{dir}_hh_hp_extension'] = bp.distance(f'hindpaw_{dir}', f'hindheel_{dir}')
+
+    for dir in ('left', 'right'):
+        bp[f'{dir}_hh_extension'] = bp.distance(f'hindheel_{dir}', 'tail') / \
+                                    bp.distance('ear_left', 'ear_right')
+        bp[f'{dir}_hp_extension'] = bp.distance(f'hindpaw_{dir}', 'tail') / \
+                                    bp.distance('ear_left', 'ear_right')
+        bp[f'{dir}_hh_hp_extension'] = bp.distance(f'hindpaw_{dir}', f'hindheel_{dir}') / \
+                                       bp.distance('ear_left', 'ear_right')
+
+    return bp.prune()
+
+
+def likelihood_map(df):
     cols = []
     for col in df.columns:
         if 'likelihood' in col[1]:
             cols.append(col)
     df = df[cols]
+    return df
+
+    # bp['left_heel_extension'] = bp.distance()
+    # bp['right_heel_extension'] = bp.distance()
+
+
+def video_to_dataset(video, window_size, df_map=likelihood_map):
+    df = pd.read_hdf(video.df_path)
+    df = df[df.columns.get_level_values(0).unique()[0]]
+    df = df.iloc[int(video.start): int(video.end)]
+
+    df = df_map(df)
 
     # Sliding Window
     new_df = df.copy(deep=True)
-    for i in range(-window_size // 2, 1 + window_size // 2):
-        for col in df.columns:
-            new_df[col[0], col[1] + str(i)] = df[col].shift(i)
-    new_df.fillna(value=0, inplace=True)
+    for i in range(- (window_size // 2), 1 + window_size // 2):
+        if i != 0:
+            for col in df.columns:
+                new_df[col[0], col[1] + str(i)] = df[col].shift(i, fill_value=0)
 
     return new_df
 
 
-def get_sklearn_dataset(labeled_videos, window_size, train_size=None, test_size=None):
+def get_sklearn_dataset(labeled_videos, window_size, train_size=None, test_size=None, df_map=likelihood_map):
     dfs = []
     ys = []
     for video in labeled_videos:
         if 'Writhe' not in video.ground_truth:
             continue
 
-        dfs.append(video_to_dataset(video, window_size))
+        dfs.append(video_to_dataset(video, window_size, df_map=df_map))
         y = torch.load(video.ground_truth['Writhe']).numpy()
         ys.append(y)
 

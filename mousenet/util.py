@@ -1,8 +1,10 @@
-from enum import Enum
-from itertools import islice
 import logging
-import torch
+import pickle
+from enum import Enum
+
 import numpy as np
+import pandas as pd
+import torch
 from sklearn import metrics
 
 
@@ -100,3 +102,98 @@ def get_class_tensor(y_pred_thresh, y):
 def prauc_feval(pred, dtrain):
     lab = dtrain.get_label()
     return 'PRAUC', metrics.average_precision_score(lab, pred)
+
+
+# Data Frame Helpers
+class BodypartProcessor:
+    def __init__(self, df):
+        self.df = df
+
+    def area(self, a, b, c):
+        return (self.df[a]['x'] * (self.df[b]['y'] - self.df[c]['y']) +
+                self.df[b]['x'] * (self.df[c]['y'] - self.df[a]['y']) +
+                self.df[c]['x'] * (self.df[a]['y'] - self.df[b]['y'])).abs() / 2
+
+    def distance(self, bp1, bp2):
+        return ((self.df[bp1]['x'] - self.df[bp2]['x']) ** 2 + \
+                (self.df[bp1]['y'] - self.df[bp2]['y']) ** 2) ** (1 / 2)
+
+    def middle(self, a, b):
+        self.df[f'{a}-{b}-middle', 'x'] = (self.df[a]['x'] + self.df[b]['x']) / 2
+        self.df[f'{a}-{b}-middle', 'y'] = (self.df[a]['y'] + self.df[b]['y']) / 2
+        return f'{a}-{b}-middle'
+
+    def prune(self):
+        cols = []
+        for col in self.df.columns:
+            if 'likelihood' in col[1] or 'feature' in col[1]:
+                cols.append(col)
+        return self.df[cols]
+
+    def speed(self, bp):
+        return (self.df[bp]['x'].diff().abs() ** 2 + self.df[bp]['y'].diff().abs() ** 2) ** (1 / 2)
+
+    def __setitem__(self, key, value):
+        self.df[key, 'feature'] = value
+
+
+def get_dose_to_video_ids(excel_file_path):
+    video_to_dose = dict()
+    video_to_dose_pd = pd.read_excel(excel_file_path)
+    for row in range(video_to_dose_pd.shape[0]):
+        video_id = video_to_dose_pd.iat[row, 0]
+        dose = video_to_dose_pd.iat[row, 1]
+        video_to_dose[video_id] = dose
+
+    dose_to_videos = dict()
+    for key, value in video_to_dose.items():
+        dose_to_videos.setdefault(value, list()).append(key)
+
+    return dose_to_videos
+
+
+def get_ypreds(videos, save_path):
+    y_clustered = []
+    y_pred = []
+    for video in videos:
+        video_id = video.get_video_id()
+        df = pd.read_pickle(save_path.format(VIDEO_ID=video_id))
+
+        df.loc[df['Clustered Events'] != -1, 'Clustered Events'] = 1
+        df.loc[df['Clustered Events'] == -1, 'Clustered Events'] = 0
+
+        y_clustered.append(df['Clustered Events'].to_numpy())
+        y_pred.append(df['Event Confidence'].to_numpy())
+
+    return y_pred, y_clustered
+
+
+def get_human_pred(videos, save_path):
+    human_preds = []
+    for video in videos:
+        video_id = video.get_video_id()
+        human_labelled_df = pd.read_pickle(save_path.format(VIDEO_ID=video_id.replace('CFR', '')))
+        human_labelled = np.array([list(human_labelled_df.index.values), list(human_labelled_df['Event'])]).swapaxes(0,
+                                                                                                                     1)
+        human_pred = np.zeros(30 * 60 * 30)
+        for event_time in human_labelled[:, 0]:
+            human_pred[int(event_time * 30 * 60)] = 1
+        human_preds.append(human_pred)
+        
+    return human_preds
+
+
+def generate_classification_vector(videos, matching_save_path):
+    matching = pickle.load(open(matching_save_path, 'rb'))
+    vectors = []
+    for video in videos:
+        vector = np.empty(video.get_num_frames())
+        vector.fill(ClassificationTypes.TRUE_NEGATIVE.value)
+        for tp in matching[video.get_video_id()]['TP']:
+            vector[int(tp * 60 * 30)] = ClassificationTypes.TRUE_POSITIVE.value
+        for tp in matching[video.get_video_id()]['FP']:
+            vector[int(tp * 60 * 30)] = ClassificationTypes.FALSE_POSITIVE.value
+        for tp in matching[video.get_video_id()]['FN']:
+            vector[int(tp * 60 * 30)] = ClassificationTypes.FALSE_NEGATIVE.value
+        vectors.append(vector)
+    return vectors
