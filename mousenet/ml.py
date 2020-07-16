@@ -17,7 +17,7 @@ from termcolor import colored
 import mousenet as mn
 
 
-def train_xgboost(X_train, y_train, X_val=None, y_val=None):
+def train_xgboost(X_train, y_train, X_val=None, y_val=None, verbose_eval=True):
     data_dmatrix = xgb.DMatrix(data=X_train, label=y_train)
     clf = None
     if X_val is not None and y_val is not None:
@@ -27,13 +27,13 @@ def train_xgboost(X_train, y_train, X_val=None, y_val=None):
                         params={'gpu_id': 1, 'tree_method': 'gpu_hist', 'objective': 'binary:logistic',
                                 'nthread': mp.cpu_count(), },
                         num_boost_round=200, evals=[(val_dmatrix, 'val_set')], early_stopping_rounds=30,
-                        feval=mn.prauc_feval, maximize=True)
+                        feval=mn.prauc_feval, maximize=True, verbose_eval=verbose_eval)
     else:
         val_dmatrix = xgb.DMatrix(data=X_val, label=y_val)
 
         clf = xgb.train(dtrain=data_dmatrix,
                         params={'gpu_id': 1, 'tree_method': 'gpu_hist', 'objective': 'binary:logistic',
-                                'nthread': mp.cpu_count(), }, num_boost_round=100)
+                                'nthread': mp.cpu_count(), }, num_boost_round=100, verbose_eval=verbose_eval)
     return clf
 
 

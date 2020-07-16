@@ -92,16 +92,7 @@ def main(cfg):
             X_train, X_test, y_train, y_test, X_video_list, y_video_list = \
                 mn.get_sklearn_dataset(labeled_videos, window_size=cfg['xgb']['window_size'],
                                        test_size=cfg['xgb']['test_size'], df_map=mn.mouse_map)
-
-            train_sizes = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.999]
-
-            prauc = []
-            for train_size in tqdm(train_sizes, desc='PRAUC vs. Data'):
-                X_train_new, _, y_train_new, _ = mn.train_test_split(X_train, y_train, train_size=train_size, shuffle=False)
-                clf = mn.train_xgboost(X_train_new, y_train_new, X_test, y_test, verbose_eval=False)
-                prauc.append(metrics.average_precision_score(y_test, clf.predict(xgboost.DMatrix(data=X_test),
-                                                                                ntree_limit=clf.best_ntree_limit)))
-            print(prauc)
+            mn.prauc_vs_data(X_train, X_test, y_train, y_test)
 
         if cfg['visualization']['video_instances']:
             if cfg['visualization']['plot_matching']:
@@ -113,12 +104,19 @@ def main(cfg):
                                                          cfg['human_labels']['summary_file'],
                                                          cfg['human_labels']['blind_key_to_video_id'],
                                                          cfg['videos']['dosage'])
-
+            max_events = 0
+            import pandas as pd
+            import numpy as np
+            for video in videos:
+                video_id = video.get_video_id()
+                df_path = cfg['cache_paths']['machine_label'].format(VIDEO_ID=video_id)
+                max_events = max(max_events, pd.read_pickle(df_path)['Clustered Events'].max())
+                max_events = max(max_events, np.mean([sum(h[:, 1]) for h in human_labels[video_id.replace('CFR', '')]]))
             for video in tqdm(videos, desc='Plotting Single Videos'):
                 video_id = video.get_video_id()
                 mn.vis.plot_single_video_instance(human_labels[video_id.replace('CFR', '')],
                                                   cfg['cache_paths']['machine_label'],
-                                                  video_id, matching_stats[video_id])
+                                                  video_id, matching_stats[video_id], y_top=max_events+10)
 
         if cfg['visualization']['drc']:
             dosages = mn.get_dose_to_video_ids(cfg['videos']['dosage'])

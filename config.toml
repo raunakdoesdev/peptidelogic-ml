@@ -11,8 +11,8 @@
     retrain = false
     reinfer = false # will automatically reinfer if retrained, regardless of this setting
 
-    model_path='/home/pl/projects/pl//MWT/models/dlc_new.save'
-    labels = '/home/pl/projects/pl/MWT/human_label_json/2020-07-05_ben.json'
+    model_path='/home/pl/projects/pl/MWT/clf/models/dlc_new.save'
+    labels = '/home/pl/projects/pl/MWT/clf/training/2020-07-05_ben.json'
 
     test_size = 0.25
     window_size = 100
@@ -23,7 +23,7 @@
     config_path = "/home/pl/projects/pl/DLC/05_07_2020-ben-2020-07-05/config.yaml"
 
 [clustering]
-    redo = true
+    redo = false
     eps = 2  # in seconds
     min_samples = 3
     thresh = 0.6
@@ -40,41 +40,41 @@ train = false
 infer = false
 
 [visualization]
-    refresh = false
-    drc = false
+    refresh = true
+    drc = true
     pr_auc_vs_data = false
-    video_instances = true
+    video_instances = false
     plot_matching = true
+#    save_path = '/home/pl/projects/pl/MWT/results/plots.pdf'
     save_path = 'test.pdf'
-    auto_open = false
+    auto_open = true
 
 ################################################################################################
 #                                          DATA                                                #
 ################################################################################################
 
 [videos]
-    path_to_videos = '/home/pl/projects/pl/MWT/data/'
-#    video_ids = ['CFRBW_MWT_191104_M2_R3']#, 'CFRBW_MWT_191104_M2_R3']
+    path_to_videos = '/home/pl/projects/pl/MWT/'
     video_ids = ["CFRBW_MWT_191104_M1_R1", "CFRBW_MWT_191104_M2_R2", "CFRBW_MWT_191105_M1_R2", "CFRBW_MWT_191105_M3_R3",
                  "CFRBW_MWT_191107_M4_R2", "CFRBW_MWT_191107_M5_R3", "CFRBW_MWT_191104_M3_R1", "CFRBW_MWT_191104_M1_R2",
                  "CFRBW_MWT_191104_M2_R3", "CFRBW_MWT_191105_M5_R2", "CFRBW_MWT_191105_M6_R3", "CFRBW_MWT_191104_M2_R1",
                  "CFRBW_MWT_191104_M3_R2", "CFRBW_MWT_191105_M2_R2", "CFRBW_MWT_191105_M4_R2", "CFRBW_MWT_191105_M5_R3",
                  "CFRBW_MWT_191104_M5_R1", "CFRBW_MWT_191104_M1_R3", "CFRBW_MWT_191104_M6_R3", "CFRBW_MWT_191105_M2_R3",
                  "CFRBW_MWT_191107_M2_R2", "CFRBW_MWT_191107_M3_R2", "CFRBW_MWT_191107_M1_R3", "CFRBW_MWT_191107_M2_R3"]
-    dosage = '/home/pl/projects/pl/MWT/data/spreadsheets/06_20_2020_video_id_to_dose_virtual.xlsx'
+    dosage = '/home/pl/projects/pl/MWT/spreadsheets/06_20_2020_video_id_to_dose_virtual.xlsx'
 
 [human_labels]
     refresh = false
-    summary_file = "/home/pl/projects/pl/MWT/data/spreadsheets/06_20_2020_SUMMARY_REPORT.xlsx"
-    individual_files = ["/home/pl/projects/pl/MWT/data/spreadsheets/MWTest_20200618_BW_1.xlsm",
-                        "/home/pl/projects/pl/MWT/data/spreadsheets/MWTest_20200618_BW_2.xlsm",
-                        "/home/pl/projects/pl/MWT/data/spreadsheets/MWTest_20200618_BW_3.xlsm",
-                        "/home/pl/projects/pl/MWT/data/spreadsheets/MWTest_20200618_BW_4.xlsm",
-                        "/home/pl/projects/pl/MWT/data/spreadsheets/MWTest_20200619_BW_1.xlsm",
-                        "/home/pl/projects/pl/MWT/data/spreadsheets/MWTest_20200619_BW_2.xlsm",
-                        "/home/pl/projects/pl/MWT/data/spreadsheets/MWTest_20200619_BW_3.xlsm",
-                        "/home/pl/projects/pl/MWT/data/spreadsheets/MWTest_20200619_BW_4.xlsm"]
+    summary_file = "/home/pl/projects/pl/MWT/spreadsheets/06_20_2020_SUMMARY_REPORT.xlsx"
+    individual_files = ["/home/pl/projects/pl/MWT/spreadsheets/MWTest_20200618_BW_1.xlsm",
+                        "/home/pl/projects/pl/MWT/spreadsheets/MWTest_20200618_BW_2.xlsm",
+                        "/home/pl/projects/pl/MWT/spreadsheets/MWTest_20200618_BW_3.xlsm",
+                        "/home/pl/projects/pl/MWT/spreadsheets/MWTest_20200618_BW_4.xlsm",
+                        "/home/pl/projects/pl/MWT/spreadsheets/MWTest_20200619_BW_1.xlsm",
+                        "/home/pl/projects/pl/MWT/spreadsheets/MWTest_20200619_BW_2.xlsm",
+                        "/home/pl/projects/pl/MWT/spreadsheets/MWTest_20200619_BW_3.xlsm",
+                        "/home/pl/projects/pl/MWT/spreadsheets/MWTest_20200619_BW_4.xlsm"]
 
-    blind_key_to_video_id = '/home/pl/projects/pl/MWT/data/human_video_label/blind.json'
+    blind_key_to_video_id = '/home/pl/projects/pl/MWT/human_labelling/blind.json'
 
     save_path = '/home/pl/projects/pl/MWT/results/{VIDEO_ID}.human.pkl'  # {VIDEO_ID} will be auto-replaced
