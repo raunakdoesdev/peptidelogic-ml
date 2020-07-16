@@ -1,3 +1,4 @@
+import ctypes
 import multiprocessing as mp
 import os
 import pickle
@@ -204,21 +205,28 @@ class XGBoostClassifier:
 
 
 def cluster_events(videos, save_path, thresh, eps=10, min_samples=2, force=False, ):
+    from cuml import DBSCAN as cumlDBSCAN
+    import cudf
+    import pickle
+
     for video in tqdm(videos, desc="Computing Clusters"):
         vid_save_path = save_path.format(VIDEO_ID=video.get_video_id())
         try:
-            results: pd.DataFrame = pd.read_pickle(vid_save_path)
+            results = cudf.DataFrame.from_pandas(pd.read_pickle(vid_save_path))
         except Exception as e:
             raise Exception(colored(f"Failed to load prediction csv @ {vid_save_path}. "
                                     "Did you run inference with the XGBoostClassifier?", 'red'))
 
         if force or 'Clustered Events' not in results.columns:
-            all_points = np.array([range(len(results['Event Confidence']))]).swapaxes(0, 1)
-            dbscan = DBSCAN(eps=eps, min_samples=min_samples)
-
-            results['Clustered Events'] = dbscan.fit_predict(all_points,
-                                                             sample_weight=results['Event Confidence'] > thresh)
-            results.to_pickle(vid_save_path)
+            dbscan = cumlDBSCAN(eps=eps, min_samples=min_samples)
+            condition = results['Event Confidence'] > thresh
+            try:
+                reshaped = np.expand_dims(results[condition].index.as_column().to_gpu_array(), axis=1)
+                results['Clustered Events'] = -1
+                results.loc[condition, 'Clustered Events'] = dbscan.fit_predict(reshaped)
+            except TypeError:  # no events met the threshold
+                results['Clustered Events'] = -1
+            results.to_pandas().to_pickle(vid_save_path)
 
 
 def event_matching(human_label_file, machine_label_file, video_ids, save_path):

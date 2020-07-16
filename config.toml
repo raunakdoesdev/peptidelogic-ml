@@ -1,47 +1,56 @@
-[training]
-dlc = false
+################################################################################################
+#                                  MODEL PARAMETERS                                            #
+################################################################################################
 
-    [training.xgb]
-    refresh = false
-    label_json = '/home/pl/projects/pl/MWT/human_label_json/2020-07-05_ben_fused.json'
-#     label_json = '/home/pl/projects/pl/MWT/human_label_json/2020-06-03_ben-synced.json'
-    save_path = '/home/pl/projects/pl//MWT/models/dlc_json_new.save'
+[cache_paths]
+    machine_label = '/home/pl/projects/pl/MWT/results/{VIDEO_ID}.machine.pkl'
+    human_label = '/home/pl/projects/pl/MWT/results/{VIDEO_ID}.human.pkl'
+    event_matching = '/home/pl/projects/pl/MWT/results/event_stats.pkl'
+
+[xgb]
+    retrain = false
+    reinfer = false # will automatically reinfer if retrained, regardless of this setting
+
+    model_path='/home/pl/projects/pl//MWT/models/dlc_new.save'
+    labels = '/home/pl/projects/pl/MWT/human_label_json/2020-07-05_ben.json'
+
     test_size = 0.25
+    window_size = 100
 
-[visual_debugger]
-run = true
+[dlc]
+    retrain = false
+    reinfer = false # leave off in 99.99% of cases, will be handled automatically
+    config_path = "/home/pl/projects/pl/DLC/05_07_2020-ben-2020-07-05/config.yaml"
 
-[inference]
-    save_path = '/home/pl/projects/pl/MWT/results/{VIDEO_ID}.machine.pkl'  # {VIDEO_ID} will be auto-replaced
-
-    [inference.classifier]
-    refresh = true
-    force_dlc = false
-    force_xgb = true
-
-        [inference.classifier.models]
-        xgb_model_path = '/home/pl/projects/pl//MWT/models/dlc_new.save' # "/home/pl/projects/pl//MWT/models/xgb.save"
-#        dlc_config_path = "/home/pl/projects/pl/DLC/Retraining-BenR-2020-05-25/config.yaml"
-        dlc_config_path = "/home/pl/projects/pl/DLC/05_07_2020-ben-2020-07-05/config.yaml"
-
-    [inference.cluster]
-    refresh = true
-    force = false
-    eps = 15  # maximum distance between two samples for one to be considered as in the neighborhood of the other
-    min_samples = 10  # number of samples (or total weight) in a neighborhood for a point to be considered a core point
-    thresh = 0.1
+[clustering]
+    redo = true
+    eps = 2  # in seconds
+    min_samples = 3
+    thresh = 0.6
 
 [event_matching]
-refresh = true
-save_path = '/home/pl/projects/pl/MWT/results/event_stats.pkl'
+run = true
+
+################################################################################################
+#                                    VISUALIZATIONS                                            #
+################################################################################################
+
+[visual_debugger]
+train = false
+infer = false
 
 [visualization]
-    refresh = true
-    drc = true
+    refresh = false
+    drc = false
+    pr_auc_vs_data = false
     video_instances = true
     plot_matching = true
     save_path = 'test.pdf'
     auto_open = false
+
+################################################################################################
+#                                          DATA                                                #
+################################################################################################
 
 [videos]
     path_to_videos = '/home/pl/projects/pl/MWT/data/'

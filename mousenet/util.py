@@ -153,16 +153,25 @@ def get_dose_to_video_ids(excel_file_path):
 
 
 def get_ypreds(videos, save_path):
+    from tqdm.auto import tqdm
     y_clustered = []
     y_pred = []
-    for video in videos:
+    for video in tqdm(videos, desc="Debugger Processing"):
         video_id = video.get_video_id()
         df = pd.read_pickle(save_path.format(VIDEO_ID=video_id))
 
-        df.loc[df['Clustered Events'] != -1, 'Clustered Events'] = 1
-        df.loc[df['Clustered Events'] == -1, 'Clustered Events'] = 0
+        y_c = df['Clustered Events'].to_numpy()
+        last_cluster = -1
+        last_idx = 0
+        for index, val in enumerate(y_c):
+            if val != -1 and val == last_cluster:
+                y_c[last_idx: index + 1] = 1
+                last_idx = index
+            elif val != -1:
+                last_cluster = val
+                last_idx = index
 
-        y_clustered.append(df['Clustered Events'].to_numpy())
+        y_clustered.append(y_c)
         y_pred.append(df['Event Confidence'].to_numpy())
 
     return y_pred, y_clustered
@@ -179,7 +188,7 @@ def get_human_pred(videos, save_path):
         for event_time in human_labelled[:, 0]:
             human_pred[int(event_time * 30 * 60)] = 1
         human_preds.append(human_pred)
-        
+
     return human_preds
 
 

@@ -4,6 +4,7 @@ from collections import defaultdict
 import toml
 import json
 
+from sklearn import metrics
 from tqdm import tqdm
 
 import mousenet as mn
@@ -20,58 +21,91 @@ def load(x):
 
 def main(cfg):
     videos = mn.ids_to_videos(cfg['videos']['path_to_videos'], load(cfg['videos']['video_ids']))
-    if cfg['training']['dlc']:
-        dlc = mn.DLCProject(config_path=cfg['inference']['classifier']['models']['dlc_config_path'])
+
+    if cfg['dlc']['retrain']:
+        dlc = mn.DLCProject(config_path=cfg['dlc']['config_path'])
         dlc.create_training_set()
         dlc.train_network()
 
-    if cfg['training']['xgb']['refresh']:
-        dlc = mn.DLCProject(config_path=cfg['inference']['classifier']['models']['dlc_config_path'])
+    if cfg['xgb']['retrain']:
+        dlc = mn.DLCProject(config_path=cfg['dlc']['config_path'])
         labeled_videos = mn.json_to_videos(cfg['videos']['path_to_videos'],
-                                           cfg['training']['xgb']['label_json'])
-        dlc.infer_trajectories(labeled_videos, force=cfg['inference']['classifier']['force_dlc'])
+                                           cfg['xgb']['labels'])
 
-        print('Generating Dataset. This may take a while...')
-        X_train, X_test, y_train, y_test, X_video_list, y_video_list = mn.get_sklearn_dataset(labeled_videos,
-                                                                                              window_size=100,
-                                                                                              test_size=cfg['training']['xgb']['test_size'],
-                                                                                              df_map=mn.mouse_map)
+        dlc.infer_trajectories(labeled_videos, force=cfg['dlc']['reinfer'])
+        X_train, X_test, y_train, y_test, X_video_list, y_video_list = \
+            mn.get_sklearn_dataset(labeled_videos, window_size=cfg['xgb']['window_size'],
+                                   test_size=cfg['xgb']['test_size'], df_map=mn.mouse_map)
 
         clf = mn.train_xgboost(X_train, y_train, X_test, y_test)
-        pickle.dump(clf, open(cfg['training']['xgb']['save_path'], 'wb'))
-        cfg['inference']['classifier']['models']['xgb_model_path'] = cfg['training']['xgb']['save_path']  # if training, then use
+        pickle.dump(clf, open(cfg['xgb']['model_path'], 'wb'))
 
-    if cfg['inference']['classifier']['refresh']:
-        dlc = mn.DLCProject(config_path=cfg['inference']['classifier']['models']['dlc_config_path'])
-        dlc.infer_trajectories(videos, force=cfg['inference']['classifier']['force_dlc'])
-        xgb = mn.XGBoostClassifier(cfg['inference']['classifier']['models']['xgb_model_path'])
-        xgb(videos, cfg['inference']['save_path'], force=cfg['inference']['classifier']['force_xgb'])
+    if cfg['xgb']['reinfer'] or cfg['xgb']['retrain']:
+        dlc = mn.DLCProject(config_path=cfg['dlc']['config_path'])
+        dlc.infer_trajectories(videos, force=cfg['dlc']['reinfer'])
+        xgb = mn.XGBoostClassifier(cfg['xgb']['model_path'])
+        xgb(videos, cfg['cache_paths']['machine_label'], force=True)
 
-    if cfg['inference']['cluster']['refresh']:
-        mn.cluster_events(videos, cfg['inference']['save_path'], eps=cfg['inference']['cluster']['eps'],
-                          min_samples=cfg['inference']['cluster']['min_samples'],
-                          force=cfg['inference']['cluster']['force'], thresh=cfg['inference']['cluster']['thresh'])
+    if cfg['clustering']['redo'] or cfg['xgb']['reinfer'] or cfg['xgb']['retrain']:
+        mn.cluster_events(videos, cfg['cache_paths']['machine_label'], eps=cfg['clustering']['eps'],
+                          min_samples=cfg['clustering']['min_samples'],
+                          force=True, thresh=cfg['clustering']['thresh'])
 
     if cfg['human_labels']['refresh']:
         mn.extract_human_labels(load(cfg['human_labels']['blind_key_to_video_id']),
                                 load(cfg['human_labels']['individual_files']),
-                                cfg['human_labels']['save_path'])
+                                cfg['cache_paths']['human_label'])
 
-    if cfg['event_matching']['refresh']:
-        mn.event_matching(cfg['human_labels']['save_path'], cfg['inference']['save_path'], cfg['videos']['video_ids'],
-                          cfg['event_matching']['save_path'])
+    if cfg['event_matching']['run']:
+        mn.event_matching(cfg['cache_paths']['human_label'], cfg['cache_paths']['machine_label'],
+                          cfg['videos']['video_ids'], cfg['cache_paths']['event_matching'])
 
-    if cfg['visual_debugger']['run']:
+
+    if cfg['visual_debugger']['train']:
+        dlc = mn.DLCProject(config_path=cfg['dlc']['config_path'])
+        labeled_videos = mn.json_to_videos(cfg['videos']['path_to_videos'], cfg['xgb']['labels'])
+        dlc.infer_trajectories(labeled_videos, force=cfg['dlc']['reinfer'])
+        clf = mn.XGBoostClassifier(cfg['xgb']['model_path']).clf
+        X_train, X_test, y_train, y_test, X_video_list, y_video_list = \
+            mn.get_sklearn_dataset(labeled_videos, window_size=cfg['xgb']['window_size'],
+                                   test_size=cfg['xgb']['test_size'], df_map=mn.mouse_map)
+        y_preds, class_tensors = mn.generate_confusion_vector(clf, X_video_list, y_video_list)
+        mn.visual_debugger(labeled_videos, [y_preds, y_video_list], class_tensors, val_percent=0.25)
+
+    if cfg['visual_debugger']['infer']:
+        dlc = mn.DLCProject(config_path=cfg['dlc']['config_path'])
         cfr_videos = [video for video in videos if 'CFR' in video.get_video_id()]
-        y_pred, y_clustered = mn.get_ypreds(cfr_videos, cfg['inference']['save_path'])
-        human_pred = mn.get_human_pred(cfr_videos, cfg['human_labels']['save_path'])
-        class_vectors = mn.generate_classification_vector(cfr_videos, cfg['event_matching']['save_path'])
+        dlc.infer_trajectories(cfr_videos, force=cfg['dlc']['reinfer'])
+        y_pred, y_clustered = mn.get_ypreds(cfr_videos, cfg['cache_paths']['machine_label'])
+        human_pred = mn.get_human_pred(cfr_videos, cfg['cache_paths']['human_label'])
+        class_vectors = mn.generate_classification_vector(cfr_videos, cfg['cache_paths']['event_matching'])
         mn.visual_debugger(cfr_videos, (y_clustered, y_pred, human_pred), class_vectors, val_percent=0)
 
+
     if cfg['visualization']['refresh']:
+        if cfg['visualization']['pr_auc_vs_data']:
+            import xgboost
+            dlc = mn.DLCProject(config_path=cfg['dlc']['config_path'])
+            labeled_videos = mn.json_to_videos(cfg['videos']['path_to_videos'],
+                                               cfg['xgb']['labels'])
+            dlc.infer_trajectories(labeled_videos, force=cfg['dlc']['reinfer'])
+            X_train, X_test, y_train, y_test, X_video_list, y_video_list = \
+                mn.get_sklearn_dataset(labeled_videos, window_size=cfg['xgb']['window_size'],
+                                       test_size=cfg['xgb']['test_size'], df_map=mn.mouse_map)
+
+            train_sizes = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.999]
+
+            prauc = []
+            for train_size in tqdm(train_sizes, desc='PRAUC vs. Data'):
+                X_train_new, _, y_train_new, _ = mn.train_test_split(X_train, y_train, train_size=train_size, shuffle=False)
+                clf = mn.train_xgboost(X_train_new, y_train_new, X_test, y_test, verbose_eval=False)
+                prauc.append(metrics.average_precision_score(y_test, clf.predict(xgboost.DMatrix(data=X_test),
+                                                                                ntree_limit=clf.best_ntree_limit)))
+            print(prauc)
+
         if cfg['visualization']['video_instances']:
             if cfg['visualization']['plot_matching']:
-                matching_stats = pickle.load(open(cfg['event_matching']['save_path'], 'rb'))
+                matching_stats = pickle.load(open(cfg['cache_paths']['event_matching'], 'rb'))
             else:
                 matching_stats = defaultdict(lambda: None)
 
@@ -80,11 +114,10 @@ def main(cfg):
                                                          cfg['human_labels']['blind_key_to_video_id'],
                                                          cfg['videos']['dosage'])
 
-            print(human_labels.keys())
             for video in tqdm(videos, desc='Plotting Single Videos'):
                 video_id = video.get_video_id()
                 mn.vis.plot_single_video_instance(human_labels[video_id.replace('CFR', '')],
-                                                  cfg['inference']['save_path'],
+                                                  cfg['cache_paths']['machine_label'],
                                                   video_id, matching_stats[video_id])
 
         if cfg['visualization']['drc']:
@@ -92,7 +125,7 @@ def main(cfg):
             human_labels = mn.extract_drc_human_labels(cfg['videos']['video_ids'], cfg['human_labels']['summary_file'],
                                                        cfg['human_labels']['blind_key_to_video_id'],
                                                        cfg['videos']['dosage'])
-            mn.vis.plot_drc(human_labels, cfg['inference']['save_path'], dosages)
+            mn.vis.plot_drc(human_labels, cfg['cache_paths']['machine_label'], dosages)
 
         mn.vis.save_figs(cfg['visualization']['save_path'])
 
